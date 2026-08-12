@@ -120,6 +120,7 @@ const Anim = (() => {
       border-radius:${borderRadius};
       box-shadow:${startBoxShadow};
       transform:${persp}scale(${preScale}) rotateY(${rotateYStart}deg) rotate(${rotateStart}deg);
+      will-change:transform;
       transition:none;
       ${extraStyle}
     `;
@@ -131,36 +132,35 @@ const Anim = (() => {
     const dy = dst.top - src.top;
     const arc = Math.max(34, Math.min(120, Math.hypot(dx, dy) * 0.28));
 
+    // Escala para llegar al tamaño del destino SIN animar width/height
+    // (las dimensiones del ghost quedan fijas; solo se compone transform).
+    const sx = src.width > 0 ? dst.width / src.width : 1;
+    const sy = src.height > 0 ? dst.height / src.height : 1;
+    const s = (sx + sy) / 2;
+    const midScale = (preScale + s) / 2;
+
     if (typeof ghost.animate === 'function') {
-      // Vuelo con arco (Web Animations API)
+      // Vuelo con arco (Web Animations API) — solo transform/opacity.
       const midRotateY = rotateYStart + (rotateYEnd - rotateYStart) * 0.5;
       const midRotate = rotateStart + (rotateEnd - rotateStart) * 0.5;
       ghost.animate([
         {
           transform: `${persp}translate(0,0) scale(${preScale}) rotateY(${rotateYStart}deg) rotate(${rotateStart}deg)`,
-          width: `${src.width}px`, height: `${src.height}px`,
-          boxShadow: startBoxShadow,
+          opacity: 1,
         },
         {
-          transform: `${persp}translate(${dx / 2}px, ${dy / 2 - arc}px) scale(1) rotateY(${midRotateY}deg) rotate(${midRotate}deg)`,
-          width: `${(src.width + dst.width) / 2}px`, height: `${(src.height + dst.height) / 2}px`,
-          boxShadow: startBoxShadow,
+          transform: `${persp}translate(${dx / 2}px, ${dy / 2 - arc}px) scale(${midScale}) rotateY(${midRotateY}deg) rotate(${midRotate}deg)`,
+          opacity: 1,
           offset: 0.5,
         },
         {
-          transform: `${persp}translate(${dx}px, ${dy}px) scale(1) rotateY(${rotateYEnd}deg) rotate(${rotateEnd}deg)`,
-          width: `${dst.width}px`, height: `${dst.height}px`,
-          boxShadow: endBoxShadow || startBoxShadow,
+          transform: `${persp}translate(${dx}px, ${dy}px) scale(${s}) rotateY(${rotateYEnd}deg) rotate(${rotateEnd}deg)`,
+          opacity: 1,
         },
       ], { duration: durationMs, easing: 'cubic-bezier(.28,.6,.4,1)', fill: 'forwards' });
     } else {
-      ghost.style.transition = `all ${durationMs}ms cubic-bezier(.22,1,.36,1)`;
-      ghost.style.left = `${dst.left}px`;
-      ghost.style.top = `${dst.top}px`;
-      ghost.style.width = `${dst.width}px`;
-      ghost.style.height = `${dst.height}px`;
-      ghost.style.transform = `${persp}scale(1) rotateY(${rotateYEnd}deg) rotate(${rotateEnd}deg)`;
-      if (endBoxShadow) ghost.style.boxShadow = endBoxShadow;
+      ghost.style.transition = `transform ${durationMs}ms cubic-bezier(.22,1,.36,1)`;
+      ghost.style.transform = `${persp}translate(${dx}px, ${dy}px) scale(${s}) rotateY(${rotateYEnd}deg) rotate(${rotateEnd}deg)`;
     }
 
     await wait(holdMs ?? Math.max(durationMs - 20, 0));
@@ -198,7 +198,7 @@ const Anim = (() => {
     const flightMs = scaleMs(420, motion.speed);
     const flipMs = scaleMs(210, motion.speed);
 
-    ghost.style.transition = `all ${flightMs}ms cubic-bezier(.22,1,.36,1)`;
+    ghost.style.transition = `transform ${flightMs}ms cubic-bezier(.22,1,.36,1)`;
     ghost.style.transform = `translate(${dx}px, ${dy}px) rotate(15deg) scale(1)`;
 
     // A mitad del recorrido, voltea para mostrar el frente

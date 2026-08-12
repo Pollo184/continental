@@ -48,6 +48,28 @@ let _pendingTurnAlert = false;
 let guideAutoTimer = null;
 let guideState = { active: false, steps: [], index: 0, doneKey: null };
 
+// Eventos cuyo render SÍ puede coalescerse: son acciones ajenas cuyo feedback
+// visual no depende de que el DOM tenga el estado nuevo de inmediato.
+const COALESCIBLE_EVENTS = new Set([
+    'tomar_mazo', 'tomar_fondo', 'pagar', 'bajar', 'acomodar',
+    'reordenar', 'intercambiar_comodin', 'castigo',
+]);
+let _lastRenderAt = 0;
+
+// Render con coalescing: si ya se rindió en este frame y el evento es de otro
+// jugador, se salta el render (el siguiente mensaje lo aplicará). Reduce
+// repintados del fieltro cuando varios jugadores actúan seguido.
+function renderStateUpdate(event, data) {
+    const actorIdx = data?.jugadorIdx;
+    const isOpponentEvent = COALESCIBLE_EVENTS.has(event)
+        && typeof actorIdx === 'number'
+        && actorIdx !== myIdx;
+    const now = performance.now();
+    if (isOpponentEvent && now - _lastRenderAt < 16) return;
+    render();
+    _lastRenderAt = now;
+}
+
 let buildingCards = new Map(); // slotIndex (string) -> array de cartas completas
 
 function escapeHtml(value) {
@@ -1281,7 +1303,7 @@ function setupSocketEvents() {
             }
         } else {
             hideHandDuringDeal = false;
-            render();
+            renderStateUpdate(event, data);
             await applyEvent(event, data, prev);
         }
 
@@ -2746,69 +2768,128 @@ function renderScoreboard() {
 function seatLayout(n) {
     const feltEl = document.getElementById('felt');
     const feltW = feltEl ? feltEl.clientWidth : 0;
+    const feltH = feltEl ? feltEl.clientHeight : 0;
     const land = window.matchMedia?.('(orientation: landscape) and (max-height: 500px)').matches;
     const narrow = feltW > 0 && feltW < 1000;
+
+    // El fieltro es un óvalo (border-radius: 50% / 42%), con overflow:hidden.
+    // Los asientos deben quedar COMPLETOS dentro del óvalo, así que se colocan
+    // sobre el borde: y = borde del óvalo en la columna (x ± medio panel) + medio
+    // panel + margen. Antes se fijaba y=9% y el panel centrado quedaba recortado
+    // por el canto del fieltro.
+    const HP = 52, WP = 104;      // medio panel .opp normal (px aprox)
+    const HP_T = 17, WP_T = 45;   // medio panel compacto .opp--tiny
+    const MARG = 1.5, GAP = 6;    // márgenes (% del alto del fieltro)
+    const RY = 42;                // ry del óvalo (border-radius: 50% / 42%)
+
+    const edgeY = (x) => {
+        const u = Math.max(-1, Math.min(1, (x - 50) / 50));
+        return 50 - RY * Math.sqrt(1 - u * u);
+    };
+    const seatY = (x, hwPct, hhPct) => {
+        const cornerX = x < 50 ? x - hwPct : x + hwPct;
+        return Math.max(3, edgeY(cornerX) + hhPct + MARG);
+    };
+    const halfs = (tiny) => ({
+        hwPct: ((tiny ? WP_T : WP) / feltW) * 100,
+        hhPct: ((tiny ? HP_T : HP) / feltH) * 100,
+    });
 
     let seats, plays, maxWs, zones, seatWs;
     if (land) {
         const k = Math.max(n - 1, 1);
         const xArr = Array.from({ length: k }, (_, i) => Math.round(100 * (i + 1) / (k + 1)));
-        seats = xArr.map(x => [x, 9]);
-        plays = xArr.map(x => [x, 27]);
+        const { hwPct, hhPct } = halfs(false);
+        seats = xArr.map(x => [x, Math.min(28, seatY(x, hwPct, hhPct))]);
+        plays = xArr.map((x, i) => [x, Math.min(32, seats[i][1] + hhPct + GAP)]);
         maxWs = xArr.map(() => ({ 1: 30, 2: 24, 3: 20, 4: 18 }[k] || 18));
         zones = xArr.map(() => 'land');
         seatWs = xArr.map(() => Math.max(10, Math.floor(80 / k)));
     } else if (n === 5 && narrow) {
-        seats = [[20, 9], [40, 9], [60, 9], [80, 9]];
-        plays = [[20, 27], [40, 27], [60, 27], [80, 27]];
-        maxWs = [18, 18, 18, 18];
+        // 4 oponentes en fila superior; paneles compactos para que quepan en el óvalo
+        const xs = [20, 40, 60, 80];
+        const { hwPct, hhPct } = halfs(true);
+        seats = xs.map(x => [x, seatY(x, hwPct, hhPct)]);
+        plays = xs.map((x, i) => [x, Math.min(40, seats[i][1] + hhPct + GAP)]);
+        maxWs = [16, 16, 16, 16];
         zones = ['top', 'top', 'top', 'top'];
-        seatWs = [17, 17, 17, 17];
+        seatWs = xs.map(() => Math.min(17, (94 * 100) / feltW)); // fuerza .opp--tiny
     } else {
         const M = {
-            2: { seats: [[50, 9]], plays: [[50, 25]], maxW: [30], zone: ['top'], seatW: [30] },
-            3: { seats: [[30, 9], [70, 9]], plays: [[30, 26], [70, 26]], maxW: [24, 24], zone: ['top', 'top'], seatW: [26, 26] },
-            4: { seats: [[20, 10], [50, 8], [80, 10]], plays: [[20, 28], [50, 26], [80, 28]], maxW: [23, 23, 23], zone: ['top', 'top', 'top'], seatW: [26, 26, 26] },
-            5: { seats: [[33, 9], [67, 9], [9, 22], [91, 22]], plays: [[33, 23], [67, 23], [13, 44], [87, 44]], maxW: [22, 22, 13, 13], zone: ['top', 'top', 'side', 'side'], seatW: [26, 26, 14, 14] },
-        }[n] || { seats: [[30, 9], [70, 9]], plays: [[30, 23], [70, 23]], maxW: [24, 24], zone: ['top', 'top'], seatW: [26, 26] };
-        seats = M.seats; plays = M.plays; maxWs = M.maxW; zones = M.zone; seatWs = M.seatW;
+            2: { xs: [50], maxW: [30], seatW: [30] },
+            3: { xs: [30, 70], maxW: [24, 24], seatW: [26, 26] },
+            4: { xs: [20, 50, 80], maxW: [23, 23, 23], seatW: [26, 26, 26] },
+            5: { xs: [33, 67], side: [14, 86], maxW: [22, 22, 13, 13], seatW: [26, 26, 14, 14] },
+        }[n] || { xs: [30, 70], maxW: [24, 24], seatW: [26, 26] };
+
+        const { hwPct, hhPct } = halfs(false);
+        seats = M.xs.map(x => [x, seatY(x, hwPct, hhPct)]);
+        plays = M.xs.map((x, i) => [x, seats[i][1] + hhPct + GAP]);
+        if (M.side) {
+            M.side.forEach(x => seats.push([x, seatY(x, hwPct * 0.92, hhPct)]));
+            const base = M.xs.length;
+            M.side.forEach((x, i) => {
+                const sy = seats[base + i][1];
+                plays.push([x, Math.min(52, sy + hhPct + GAP)]);
+            });
+        }
+        maxWs = M.maxW;
+        seatWs = M.seatW;
+        zones = plays.map((_, i) => (M.side && i >= M.xs.length ? 'side' : 'top'));
     }
 
-    const opp = (ji) => {
+    const seatOf = (ji) => {
+        if (ji === myIdx) {
+            return { seat: null, play: [50, land ? 86 : 81], maxW: land ? 80 : 72, zone: 'me', seatW: 0 };
+        }
         const seatIdx = ji < myIdx ? ji : ji - 1;
-        return {
-            seat: seats[seatIdx] || null,
-            play: plays[seatIdx] || null,
-            maxW: maxWs[seatIdx] != null ? maxWs[seatIdx] : 24,
-            zone: zones[seatIdx] || 'top',
-            seatW: seatWs[seatIdx] != null ? seatWs[seatIdx] : 26,
-        };
+        return { seat: seats[seatIdx], play: plays[seatIdx], maxW: maxWs[seatIdx], zone: zones[seatIdx], seatW: seatWs[seatIdx] };
     };
-    return {
-        oppCount: n - 1,
-        feltW,
-        narrow,
-        land,
-        seatOf: (ji) => ji === myIdx
-            ? { seat: null, play: [50, land ? 86 : 81], maxW: land ? 80 : 72, zone: 'me', seatW: 0 }
-            : opp(ji),
-    };
+
+    return { oppCount: n - 1, feltW, feltH, narrow, land, seatOf };
+}
+
+let _oppSigs = {};
+let _oppLayoutKey = '';
+let _playsSigs = {};
+let _playsInteractionSig = null;
+let _playsLayoutKey = '';
+let _handSig = '';
+
+function layoutKey() {
+    const feltEl = document.getElementById('felt');
+    return feltEl ? feltEl.clientWidth + 'x' + feltEl.clientHeight : '0x0';
 }
 
 function renderOpponents() {
     const opEl = document.getElementById('opponents');
-    opEl.innerHTML = '';
+    if (!opEl) return;
     const layout = seatLayout(G.jugadores.length);
+    const lk = layoutKey();
+    const layoutChanged = lk !== _oppLayoutKey;
+    _oppLayoutKey = lk;
+
+    const newSigs = {};
+    const existing = [...opEl.children];
+
     G.jugadores.forEach((j, i) => {
         if (i === myIdx) return;
         const pos = layout.seatOf(i);
+        const tiny = layout.feltW && layout.feltW * pos.seatW / 100 < 95;
+        const sig = `${j.nombre}|${j.badge}|${j.skin}|${j.pts_t}|${j.fichas}|${j.quebrado ? 1 : 0}|${j.conectado ? 1 : 0}|${j.bajado ? 1 : 0}|${(j.mano || []).length}|${(j.jugadas || []).length}|${i === G.turno ? 1 : 0}|${pos.zone}|${pos.seat ? pos.seat[0] + '/' + pos.seat[1] : ''}|${pos.seatW}|${tiny ? 1 : 0}`;
+        newSigs[i] = sig;
+
+        let el = opEl.querySelector(`.opp[data-idx="${i}"]`);
+        if (el && !layoutChanged && _oppSigs[i] === sig) return;
+
+        if (el) el.remove();
         const d = document.createElement('div');
-        d.className = `opp${i === G.turno ? ' turn' : ''}${j.bajado ? ' bajado' : ''}${_turnJustChanged && i === G.turno ? ' turn-arrive' : ''}${pos.zone === 'side' ? ' opp--side' : ''}`;
+        d.className = `opp${i === G.turno ? ' turn' : ''}${j.bajado ? ' bajado' : ''}${pos.zone === 'side' ? ' opp--side' : ''}`;
         if (pos.seat) {
             d.style.left = pos.seat[0] + '%';
             d.style.top = pos.seat[1] + '%';
             d.style.maxWidth = pos.seatW + '%';
-            if (layout.feltW && layout.feltW * pos.seatW / 100 < 95) d.classList.add('opp--tiny');
+            if (tiny) d.classList.add('opp--tiny');
         }
         d.dataset.idx = i;
         const avBg = skinAvatarStyle(j.skin).bg;
@@ -2830,6 +2911,20 @@ function renderOpponents() {
         `;
         opEl.appendChild(d);
     });
+
+    // Eliminar paneles de jugadores que ya no son oponentes
+    existing.forEach(el => {
+        const idx = Number(el.dataset.idx);
+        if (!newSigs[idx]) el.remove();
+    });
+
+    // Transitorio: clase de entrada cuando el turno acaba de cambiar
+    if (_turnJustChanged) {
+        const el = opEl.querySelector(`.opp[data-idx="${G.turno}"]`);
+        if (el && !el.classList.contains('turn-arrive')) el.classList.add('turn-arrive');
+    }
+
+    _oppSigs = newSigs;
 }
 
 const SKIN_AVATAR_BG = {
@@ -2870,95 +2965,142 @@ function skinAvatarStyle(skin) {
 // (esperando_accion o esperando_pago), usando la misma función de detección.
 // ─────────────────────────────────────────────────────────────────────────────
 function renderTableBajadas() {
-    // Limpiar todas las zonas de jugadas
     const feltPlays = document.getElementById('felt-plays');
-    if (feltPlays) feltPlays.innerHTML = '';
     const layout = seatLayout(G.jugadores.length);
+    const lk = layoutKey();
+    const layoutChanged = lk !== _playsLayoutKey;
+    _playsLayoutKey = lk;
 
+    // Componente global que afecta el HTML interno de todas las pilas
+    // (marcadores de intercambio, onclicks, resaltados).
+    const _me = G.jugadores[myIdx];
+    const interactionSig = `${intercambioMode ? 1 : 0}|${G.turno}|${G.estado}|${selId}|${isMyTurn() ? 1 : 0}|${_me?.bajado ? 1 : 0}|${(_me?.mano || []).map(c => c.id).join(',')}`;
+    const interactionChanged = interactionSig !== _playsInteractionSig;
+    _playsInteractionSig = interactionSig;
+
+    const newSigs = {};
     G.jugadores.forEach((j, ji) => {
         if (!j.bajado || !j.jugadas?.length) return;
-
-        const pos = layout.seatOf(ji);
-        let target = feltPlays?.querySelector(`.seat-plays[data-pi="${ji}"]`);
-        if (!target) {
-            target = document.createElement('div');
-            target.className = `seat-plays${ji === myIdx ? ' sp--me' : (pos.zone === 'side' ? ' sp--side' : '')}`;
-            target.dataset.pi = ji;
-            target.dataset.maxW = String(pos.maxW);
-            target.dataset.zone = pos.zone;
-            if (pos.play) { target.style.left = pos.play[0] + '%'; target.style.top = pos.play[1] + '%'; }
-            if (pos.maxW && pos.zone !== 'land') target.style.maxWidth = pos.maxW + '%';
-            feltPlays?.appendChild(target);
-        }
-
-        j.jugadas.forEach((jug, jugi) => {
-            const pile = document.createElement('div');
-            pile.className = 'bajada-pile';
-            if (intercambioMode) pile.classList.add('intercambio-mode');
-            pile.dataset.pi = ji;
-            pile.dataset.ji = jugi;
-
-            // ── Detectar intercambios posibles ──
-            // Antes: solo si !me.bajado && esperando_accion
-            // Ahora: también si me.bajado && (esperando_accion || esperando_pago)
-            const _me = G.jugadores[myIdx];
-            const puedeIntercambiar = isMyTurn() && ['esperando_accion', 'esperando_pago'].includes(G.estado);
-            const intercambiosPosibles = puedeIntercambiar ? detectarIntercambiosPosibles() : [];
-
-            const cardsHtml = jug.cartas.map(c => {
-                if (c.comodin) {
-                    const vr = c.valorReemplazado || '?';
-                    const vrPalo = c.paloReemplazado ? c.paloReemplazado : '';
-                    const intercPosible = intercambiosPosibles.find(
-                        ic => ic.jugadorIdx === ji && ic.jugadaIdx === jugi && ic.comodinId === c.id
-                    );
-                    if (intercPosible) {
-                        const icKey = `${ji}-${jugi}-${c.id}`;
-                        // Tooltip diferente según si ya está bajado o no
-                        const tipTxt = intercPosible.esCasoBajado
-                            ? `🔄 Poner ${intercPosible.cartaValor}${intercPosible.cartaPalo} aquí → recibes el Joker para acomodar`
-                            : `🔄 Intercambiar por ${intercPosible.cartaValor}${intercPosible.cartaPalo} → recibes el Joker`;
-                        return `<div class="card-sm joker-sm comodin-intercambiable joker-highlight"
-                                     title="${tipTxt}"
-                                     data-ic-key="${icKey}"
-                                     data-comodin-id="${c.id}"
-                                     onclick="event.stopPropagation(); window.ejecutarIntercambioDesdeKey('${icKey}')">
-                                     🃏<small style="font-size:12px;display:block;color:#ffe066;">=${vr}${vrPalo}</small>
-                                     <small style="font-size:10px;display:block;color:#4de88a;">↔ CLIC</small></div>`;
-                    }
-                    if (intercambioMode && isMyTurn() && ji !== myIdx) {
-                        return `<div class="card-sm joker-sm comodin-intercambiable"
-                                     title="Reemplaza a: ${vr}${vrPalo}"
-                                     data-comodin-id="${c.id}" data-jugador="${ji}" data-jugada="${jugi}"
-                                     onclick="event.stopPropagation(); window.activarModoIntercambio(${ji}, ${jugi}, '${c.id}')">
-                                     🃏<small style="font-size:12px;display:block;">=${vr}${vrPalo}</small></div>`;
-                    }
-                    return `<div class="card-sm joker-sm" title="Reemplaza a: ${vr}${vrPalo}" data-comodin-id="${c.id}">🃏<small style="font-size:12px;display:block;">=${vr}${vrPalo}</small></div>`;
-                }
-                return cSm(c);
-            }).join('');
-
-            pile.innerHTML = `<div class="bajada-pile-label">${jug.tipo}</div><div class="bajada-pile-cards">${cardsHtml}</div>`;
-            if (!intercambioMode && _me?.bajado) {
-                pile.onclick = () => {
-                    if (!selId || !isMyTurn()) return;
-                    // null como posicion: si es joker en corrida, preguntará automáticamente
-                    acAcomodar(selId, ji, jugi, null);
-                };
-            }
-            target.appendChild(pile);
-        });
+        newSigs[ji] = j.jugadas.map(jug =>
+            jug.tipo + ':' + jug.cartas.map(c =>
+                c.comodin ? `J${c.id}(${c.valorReemplazado || ''}${c.paloReemplazado || ''})` : c.id
+            ).join(',')
+        ).join('|');
     });
 
-    // Mostrar el contenedor de bajadas solo si alguien tiene jugadas
+    if (!layoutChanged && !interactionChanged) {
+        // Diff por jugador: solo reconstruir lo que cambió
+        let changed = false;
+        const existing = feltPlays ? [...feltPlays.querySelectorAll('.seat-plays')] : [];
+        existing.forEach(w => {
+            const ji = Number(w.dataset.pi);
+            if (newSigs[ji] === undefined || newSigs[ji] !== _playsSigs[ji]) {
+                w.remove();
+                changed = true;
+            }
+        });
+        for (const ji in newSigs) {
+            if (!feltPlays?.querySelector(`.seat-plays[data-pi="${ji}"]`)) {
+                _buildSeatPlays(feltPlays, layout, Number(ji));
+                changed = true;
+            }
+        }
+        if (!changed) {
+            ensurePlaysDisplay(feltPlays);
+            return;
+        }
+    } else {
+        if (feltPlays) feltPlays.innerHTML = '';
+        for (const ji in newSigs) _buildSeatPlays(feltPlays, layout, Number(ji));
+    }
+
+    _playsSigs = newSigs;
+    ensurePlaysDisplay(feltPlays);
+    fitSeatPlays();
+    animateNewPlays();
+}
+
+function _buildSeatPlays(feltPlays, layout, ji) {
+    if (!feltPlays) return;
+    const j = G.jugadores[ji];
+    if (!j || !j.bajado || !j.jugadas?.length) return;
+
+    const pos = layout.seatOf(ji);
+    const target = document.createElement('div');
+    target.className = `seat-plays${ji === myIdx ? ' sp--me' : (pos.zone === 'side' ? ' sp--side' : '')}`;
+    target.dataset.pi = ji;
+    target.dataset.maxW = String(pos.maxW);
+    target.dataset.zone = pos.zone;
+    if (pos.play) { target.style.left = pos.play[0] + '%'; target.style.top = pos.play[1] + '%'; }
+    if (pos.maxW && pos.zone !== 'land') target.style.maxWidth = pos.maxW + '%';
+    feltPlays.appendChild(target);
+
+    j.jugadas.forEach((jug, jugi) => {
+        const pile = document.createElement('div');
+        pile.className = 'bajada-pile';
+        if (intercambioMode) pile.classList.add('intercambio-mode');
+        pile.dataset.pi = ji;
+        pile.dataset.ji = jugi;
+
+        // ── Detectar intercambios posibles ──
+        // Antes: solo si !me.bajado && esperando_accion
+        // Ahora: también si me.bajado && (esperando_accion || esperando_pago)
+        const _me = G.jugadores[myIdx];
+        const puedeIntercambiar = isMyTurn() && ['esperando_accion', 'esperando_pago'].includes(G.estado);
+        const intercambiosPosibles = puedeIntercambiar ? detectarIntercambiosPosibles() : [];
+
+        const cardsHtml = jug.cartas.map(c => {
+            if (c.comodin) {
+                const vr = c.valorReemplazado || '?';
+                const vrPalo = c.paloReemplazado ? c.paloReemplazado : '';
+                const intercPosible = intercambiosPosibles.find(
+                    ic => ic.jugadorIdx === ji && ic.jugadaIdx === jugi && ic.comodinId === c.id
+                );
+                if (intercPosible) {
+                    const icKey = `${ji}-${jugi}-${c.id}`;
+                    // Tooltip diferente según si ya está bajado o no
+                    const tipTxt = intercPosible.esCasoBajado
+                        ? `🔄 Poner ${intercPosible.cartaValor}${intercPosible.cartaPalo} aquí → recibes el Joker para acomodar`
+                        : `🔄 Intercambiar por ${intercPosible.cartaValor}${intercPosible.cartaPalo} → recibes el Joker`;
+                    return `<div class="card-sm joker-sm comodin-intercambiable joker-highlight"
+                                 title="${tipTxt}"
+                                 data-ic-key="${icKey}"
+                                 data-comodin-id="${c.id}"
+                                 onclick="event.stopPropagation(); window.ejecutarIntercambioDesdeKey('${icKey}')">
+                                 🃏<small style="font-size:12px;display:block;color:#ffe066;">=${vr}${vrPalo}</small>
+                                 <small style="font-size:10px;display:block;color:#4de88a;">↔ CLIC</small></div>`;
+                }
+                if (intercambioMode && isMyTurn() && ji !== myIdx) {
+                    return `<div class="card-sm joker-sm comodin-intercambiable"
+                                 title="Reemplaza a: ${vr}${vrPalo}"
+                                 data-comodin-id="${c.id}" data-jugador="${ji}" data-jugada="${jugi}"
+                                 onclick="event.stopPropagation(); window.activarModoIntercambio(${ji}, ${jugi}, '${c.id}')">
+                                 🃏<small style="font-size:12px;display:block;">=${vr}${vrPalo}</small></div>`;
+                }
+                return `<div class="card-sm joker-sm" title="Reemplaza a: ${vr}${vrPalo}" data-comodin-id="${c.id}">🃏<small style="font-size:12px;display:block;">=${vr}${vrPalo}</small></div>`;
+            }
+            return cSm(c);
+        }).join('');
+
+        pile.innerHTML = `<div class="bajada-pile-label">${jug.tipo}</div><div class="bajada-pile-cards">${cardsHtml}</div>`;
+        if (!intercambioMode && _me?.bajado) {
+            pile.onclick = () => {
+                if (!selId || !isMyTurn()) return;
+                // null como posicion: si es joker en corrida, preguntará automáticamente
+                acAcomodar(selId, ji, jugi, null);
+            };
+        }
+        target.appendChild(pile);
+    });
+}
+
+function ensurePlaysDisplay(feltPlays) {
     const hayJugadas = G.jugadores.some(j => j.bajado && j.jugadas?.length);
     if (feltPlays) feltPlays.style.display = hayJugadas ? 'flex' : 'none';
+}
 
-    // Ajustar el tamaño de cada bajada para que quepa en su zona sin invadir
-    // mazo/fondo (reduce --plays-scale solo si hace falta).
-    fitSeatPlays();
-
-    // Animar solo cartas nuevas (con ID real, no textContent)
+// Anima solo cartas nuevas (con ID real, no textContent)
+function animateNewPlays() {
     const allPlays = document.querySelectorAll('#felt-plays .seat-plays .card-sm, #felt-plays .seat-plays .joker-sm');
     allPlays.forEach((el, i) => {
         const id = el.dataset.id || el.dataset.comodinId;
@@ -3121,6 +3263,18 @@ function renderHand() {
     const me = G.jugadores[myIdx];
     const discardZone = document.getElementById('discard-zone');
     if (!discardZone) return;
+
+    const manoIds = (me.mano || []).map(c => c.id).join(',');
+    const buildingSig = [...buildingCards.entries()]
+        .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+        .map(([k, cards]) => k + ':' + cards.map(c => c.id).join(','))
+        .join(';');
+    const sig = `${myIdx}|${hideHandDuringDeal ? 1 : 0}|${selId}|${intercambioMode ? 1 : 0}|${manoIds}|${buildingSig}`;
+
+    if (sig === _handSig && discardZone.querySelectorAll('.card').length === (me.mano || []).length) {
+        return;
+    }
+    _handSig = sig;
 
     renderBuildingRow();
     discardZone.innerHTML = '';
