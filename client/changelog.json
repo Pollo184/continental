@@ -1,5 +1,14 @@
 [
   {
+    "version": "v0.5.3.1",
+    "fecha": "13 ago 2026",
+    "titulo": "Ordená tus sobrantes",
+    "cambios": [
+      "Botón Palo en SOBRANTES: ordena tus cartas por palo y valor en un toque.",
+      "Arrastrar cartas con el mouse ahora es más cómodo: la mano se desplaza sola al llegar al borde y no se pierde la posición al soltar."
+    ]
+  },
+  {
     "version": "v0.5.3",
     "fecha": "13 ago 2026",
     "titulo": "Novedades, tutorial y ranking",

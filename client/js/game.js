@@ -2530,6 +2530,33 @@ function acReorder(draggedId, beforeId) {
     WS.send({ type: 'reordenar', order: newOrder.map(c => c.id) });
 }
 
+const SUIT_ORDER = { '♠': 0, '♥': 1, '♦': 2, '♣': 3 };
+
+function ordenarSobrantes() {
+    const me = G.jugadores[myIdx];
+    if (!me || !me.mano) return;
+    const enSlots = new Set();
+    buildingCards.forEach(cards => cards.forEach(c => { if (c?.id) enSlots.add(c.id); }));
+    const sobrantes = me.mano.filter(c => !enSlots.has(c.id));
+    if (sobrantes.length < 2) { toast('No hay cartas suficientes para ordenar'); return; }
+    sobrantes.sort((a, b) => {
+        if (a.comodin && b.comodin) return 0;
+        if (a.comodin) return 1;
+        if (b.comodin) return -1;
+        const bySuit = (SUIT_ORDER[a.palo] ?? 99) - (SUIT_ORDER[b.palo] ?? 99);
+        if (bySuit !== 0) return bySuit;
+        return (VN[a.valor] ?? 99) - (VN[b.valor] ?? 99);
+    });
+    const newOrder = [
+        ...me.mano.filter(c => enSlots.has(c.id)),
+        ...sobrantes,
+    ];
+    me.mano = newOrder;
+    renderHand();
+    WS.send({ type: 'reordenar', order: newOrder.map(c => c.id) });
+    toast('Sobrantes ordenados por palo', 'green');
+}
+
 function selCard(id) {
     if (intercambioMode && selectedComodinInfo) {
         selId = id;
@@ -2669,6 +2696,7 @@ function updateHandScroll() {
     const canScroll = zone.scrollWidth > zone.clientWidth + 4;
     wrap.classList.toggle('can-scroll', canScroll);
     wrap.classList.toggle('scrolled-end', canScroll && zone.scrollLeft + zone.clientWidth >= zone.scrollWidth - 8);
+    zone.classList.toggle('overflowing', canScroll);
 }
 
 function render() {
@@ -3289,6 +3317,8 @@ function renderHand() {
     }
     _handSig = sig;
 
+    const prevScroll = discardZone.scrollLeft || 0;
+
     renderBuildingRow();
     discardZone.innerHTML = '';
 
@@ -3298,6 +3328,9 @@ function renderHand() {
     (me.mano || []).forEach(c => {
         if (!cartasEnSlots.has(c.id)) discardZone.appendChild(createCardElement(c));
     });
+
+    discardZone.scrollLeft = prevScroll;
+    updateHandScroll();
 
     document.getElementById('hand-count').textContent = `${me?.mano?.length || 0} cartas`;
 }

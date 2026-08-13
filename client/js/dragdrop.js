@@ -36,6 +36,12 @@ const DragDrop = (() => {
     if (!hz) return;
     hz.querySelectorAll('.insert-ghost').forEach(g => g.remove());
     const hr = hz.getBoundingClientRect();
+
+    // Auto-scroll mientras arrastras cerca de los bordes
+    const edge = 36;
+    if (mx < hr.left + edge) hz.scrollLeft -= 10;
+    else if (mx > hr.right - edge) hz.scrollLeft += 10;
+
     if (mx < hr.left || mx > hr.right || my < hr.top || my > hr.bottom) {
       hz.classList.remove('drag-over');
       return;

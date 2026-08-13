@@ -1033,6 +1033,31 @@ html.theme-black, body.theme-black  { --felt: #1a1a1a; --felt-deep: #0a0a0a; }
   background: rgba(46,204,113,.06);
 }
 
+.sobrantes-label { justify-content: flex-start; gap: 8px; }
+.sobrantes-label .btn-sort-hand { margin-left: auto; }
+
+.btn-sort-hand {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'Outfit', sans-serif;
+  font-size: .55rem;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  color: var(--gold);
+  background: rgba(200,160,69,.08);
+  border: 1px solid rgba(200,160,69,.35);
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .1s;
+  user-select: none;
+}
+.btn-sort-hand:hover { background: rgba(200,160,69,.18); border-color: rgba(200,160,69,.6); }
+.btn-sort-hand:active { transform: scale(.96); }
+
+.discard-zone.overflowing { justify-content: flex-start; }
+
 .discard-zone .insert-ghost {
   width: 4px;
   min-width: 4px;
@@ -2213,9 +2238,10 @@ select:focus-visible {
       <div id="my-bubble-anchor" class="bubble-anchor"></div>
 
       <!-- Fila 1: Sobrantes -->
-      <div class="row-label">
+      <div class="row-label sobrantes-label">
         <span>📦 SOBRANTES</span>
         <span class="row-desc">Cartas no usadas</span>
+        <button class="btn-sort-hand" id="btn-sort-hand" onclick="ordenarSobrantes()" title="Ordenar sobrantes por palo" tabindex="-1"><i class="ph ph-sort-ascending"></i>Palo</button>
       </div>
       <div class="hand-scroll-wrap" id="hand-scroll-wrap">
         <div class="hand-zone discard-zone" id="discard-zone"></div>
@@ -2727,7 +2753,7 @@ select:focus-visible {
     </div>
     <div id="owner-console-list" class="owner-console-list"></div>
   </div>
-  <div style="position:fixed;bottom:10px;left:12px;font-size:0.65rem;color:rgba(200,160,69,0.45);pointer-events:none;z-index:9999;letter-spacing:0.04em;">beta v0.5.3</div>
+  <div style="position:fixed;bottom:10px;left:12px;font-size:0.65rem;color:rgba(200,160,69,0.45);pointer-events:none;z-index:9999;letter-spacing:0.04em;">beta v0.5.3.1</div>
 <script>
 (function() {
   const MUSIC_URL = 'https://files.catbox.moe/bs0qiq.mp3';
