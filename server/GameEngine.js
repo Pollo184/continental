@@ -781,11 +781,17 @@ class GameEngine {
             return this._err('No hay jugadas para bajar.');
         }
 
+        let totalCartasDeclaradas = 0;
         const cartasEnJugadasIds = new Set();
         for (const jugada of jugadasConstruidas) {
             for (const carta of (jugada.cartas || [])) {
                 cartasEnJugadasIds.add(carta.id);
+                totalCartasDeclaradas++;
             }
+        }
+
+        if (cartasEnJugadasIds.size !== totalCartasDeclaradas) {
+            return this._err('La misma carta está repetida en más de una jugada.');
         }
 
         for (const cartaId of cartasEnJugadasIds) {
@@ -988,6 +994,8 @@ class GameEngine {
     //   'baja'    → joker va al INICIO de la corrida (valor más bajo)
     //   Para tercias posicion se ignora (siempre al final).
     acAcomodar(playerId, cartaId, destJugadorIdx, destJugadaIdx, posicion = null) {
+        const valid = ['esperando_accion', 'esperando_pago'];
+        if (!valid.includes(this.estado)) return this._err('No es momento de acomodar.');
         const j = this._findPlayer(playerId);
         if (!j) return this._err('Jugador no encontrado.');
         const tidx = this.jugadores.indexOf(j);
