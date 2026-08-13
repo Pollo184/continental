@@ -285,6 +285,75 @@ function refreshRoomsBrowser () {
   WS.send({ type: 'list_rooms' });
 }
 
+/* ── Novedades (changelog) ─────────────────────────────── */
+const CHANGELOG_SEEN_KEY = 'continental_changelog_seen';
+let changelogEntries = [];
+let changelogLatest = null;
+
+function getSeenChangelog () {
+  return new Set((localStorage.getItem(CHANGELOG_SEEN_KEY) || '').split(',').filter(Boolean));
+}
+
+async function initChangelog () {
+  try {
+    const res = await fetch('/changelog.json', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    changelogEntries = Array.isArray(data) ? data : [];
+    if (!changelogEntries.length) return;
+    changelogLatest = changelogEntries[0].version;
+    const seen = getSeenChangelog();
+    const unread = changelogEntries.some(e => !seen.has(e.version));
+    const badge = document.getElementById('news-badge');
+    if (badge) badge.style.display = unread ? 'block' : 'none';
+    if (!localStorage.getItem(CHANGELOG_SEEN_KEY) && localStorage.getItem(WELCOME_SEEN_KEY)) {
+      setTimeout(openChangelog, 600);
+    }
+  } catch {}
+}
+
+function renderChangelog () {
+  const list = document.getElementById('changelog-list');
+  if (!list) return;
+  if (!changelogEntries.length) {
+    list.innerHTML = '<div class="rooms-empty">No hay novedades todavía.</div>';
+    return;
+  }
+  const seen = getSeenChangelog();
+  const latest = changelogEntries[0]?.version;
+  list.innerHTML = changelogEntries.map((e, i) => {
+    const isNew = e.version === latest && !seen.has(e.version);
+    return `
+      <div class="changelog-entry ${isNew ? 'new' : ''}" style="animation-delay:${Math.min(i * 50, 400)}ms">
+        <div class="changelog-ver">
+          <span>${esc(e.version)}</span>
+          ${isNew ? '<span class="changelog-tag">Nuevo</span>' : ''}
+          <span class="changelog-date">${esc(e.fecha || '')}</span>
+        </div>
+        <div class="changelog-titulo">${esc(e.titulo || '')}</div>
+        <ul>${(e.cambios || []).map(c => `<li>${esc(c)}</li>`).join('')}</ul>
+      </div>`;
+  }).join('');
+}
+
+function openChangelog () {
+  renderChangelog();
+  const ov = document.getElementById('changelog-overlay');
+  if (!ov) return;
+  ov.classList.add('show');
+  if (changelogLatest) {
+    const seen = getSeenChangelog();
+    changelogEntries.forEach(e => seen.add(e.version));
+    localStorage.setItem(CHANGELOG_SEEN_KEY, [...seen].join(','));
+  }
+  const badge = document.getElementById('news-badge');
+  if (badge) badge.style.display = 'none';
+}
+
+function closeChangelog () {
+  document.getElementById('changelog-overlay')?.classList.remove('show');
+}
+
 function renderRoomsList (rooms, loading = false) {
   const list = document.getElementById('rooms-list');
   if (!list) return;
@@ -418,6 +487,27 @@ function openGuideSettings () {
 
 function closeGuideSettings () {
   document.getElementById('guide-settings-overlay')?.classList.remove('show');
+}
+
+/* ── Bienvenida primera visita ─────────────────────────── */
+const WELCOME_SEEN_KEY = 'continental_welcome_seen';
+
+function maybeShowWelcome () {
+  if (localStorage.getItem(WELCOME_SEEN_KEY)) return;
+  const ov = document.getElementById('welcome-overlay');
+  if (ov) setTimeout(() => ov.classList.add('show'), 1200);
+}
+
+function dismissWelcome () {
+  localStorage.setItem(WELCOME_SEEN_KEY, '1');
+  document.getElementById('welcome-overlay')?.classList.remove('show');
+}
+
+function startWelcomeGuide () {
+  localStorage.setItem(WELCOME_SEEN_KEY, '1');
+  setGuideEnabled(true);
+  document.getElementById('welcome-overlay')?.classList.remove('show');
+  startGuideFromSettings();
 }
 
 function toggleGuideAuto (checked) {
@@ -916,6 +1006,8 @@ function init () {
   updateHotBadge();
   refreshChips();
   syncBetCreateState();
+  initChangelog();
+  maybeShowWelcome();
   window.addEventListener('resize', refreshGuideLayout);
   window.addEventListener('scroll', refreshGuideLayout, { passive: true });
   setupSocketEvents();
@@ -960,6 +1052,10 @@ window.setRoomApuesta      = setRoomApuesta;
 window.openRoomsBrowser    = openRoomsBrowser;
 window.closeRoomsBrowser   = closeRoomsBrowser;
 window.refreshRoomsBrowser = refreshRoomsBrowser;
+window.openChangelog       = openChangelog;
+window.closeChangelog      = closeChangelog;
+window.dismissWelcome      = dismissWelcome;
+window.startWelcomeGuide   = startWelcomeGuide;
 window.joinPublicRoom      = joinPublicRoom;
 
 document.addEventListener('DOMContentLoaded', init);

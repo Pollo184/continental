@@ -517,6 +517,19 @@
     .pos-pos { color: #2ecc71; }
     .pos-neg { color: #ff8a7a; }
 
+    .ranking-me td { background: rgba(200,160,69,.12); color: var(--gold-hi); font-weight: 600; }
+    .ranking-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .ranking-name .rn-badge { font-size: 1.05rem; flex-shrink: 0; }
+    .ranking-pos {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px; border-radius: 50%;
+      font-size: .72rem; font-weight: 700;
+    }
+    .ranking-pos.n1 { background: linear-gradient(135deg,#c8a045,#7a5c00); color: #1a1a1a; box-shadow: 0 0 10px rgba(200,160,69,.4); }
+    .ranking-pos.n2 { background: linear-gradient(135deg,#8a8a8a,#4a4a4a); color: #fff; }
+    .ranking-pos.n3 { background: linear-gradient(135deg,#8a5a2a,#4a2a10); color: #fff; }
+    .ranking-pos.other { background: rgba(255,255,255,.05); color: var(--text-dim); }
+
     .danger-zone { border-color: rgba(216,90,79,.22); }
     .danger-zone .panel-head h3 { color: #ff9a8c; }
     .danger-zone .panel-head h3 i { color: #ff6b5e; }
@@ -862,6 +875,20 @@
           </div>
         </div>
       </section>
+      <!-- Ranking -->
+      <section id="sec-ranking" class="panel" style="margin-bottom:18px">
+        <div class="panel-head"><h3><i class="ph ph-trophy"></i>Ranking</h3></div>
+        <div class="panel-body">
+          <div id="ranking-cargando" class="stats-empty">Cargando ranking…</div>
+          <div id="ranking-vacio" class="stats-empty" style="display:none">Todavía no hay jugadores rankeados. ¡Terminá una partida para entrar en el ranking!</div>
+          <div id="ranking-tabla-wrap" class="stats-table-wrap" style="display:none">
+            <table class="stats-table">
+              <thead><tr><th>#</th><th>Jugador</th><th>Partidas</th><th>Victorias</th><th>Ganancia</th></tr></thead>
+              <tbody id="ranking-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
       <!-- Niveles y logros -->
       <section id="sec-niveles" class="panel" style="margin-bottom:18px">
         <div class="panel-head"><h3><i class="ph ph-trend-up"></i>Niveles y logros</h3></div>
@@ -924,7 +951,7 @@
 
         <footer class="hub-foot">
           <i class="ph ph-spade-fill"></i>
-          <span>Continental · beta v0.5.1</span>
+                <span>Continental · beta v0.5.3</span>
         </footer>
 
         </div><!-- /.profile-body -->
@@ -1020,6 +1047,7 @@
         initPrefs();
         initDate();
         cargarStats();
+        cargarRanking();
         cargarLogros();
       } catch {
         toast('Error al cargar tus datos.', 'err');
@@ -1124,6 +1152,46 @@
         if (!res.ok) return;
         renderStats(await res.json());
       } catch {}
+    }
+
+    /* ── Ranking ─────────────────────────────────────────────── */
+    async function cargarRanking () {
+      try {
+        const res = await fetch('/api/ranking', { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        renderRanking(await res.json());
+      } catch {}
+    }
+
+    function renderRanking (data) {
+      const cargando = document.getElementById('ranking-cargando');
+      const vacio = document.getElementById('ranking-vacio');
+      const wrap = document.getElementById('ranking-tabla-wrap');
+      const body = document.getElementById('ranking-body');
+      if (!cargando || !body) return;
+      const rows = (data.ranking || []).filter(r => Number(r.partidas) > 0);
+      if (!rows.length) {
+        cargando.style.display = 'none';
+        vacio.style.display = 'block';
+        wrap.style.display = 'none';
+        return;
+      }
+      cargando.style.display = 'none';
+      vacio.style.display = 'none';
+      wrap.style.display = 'block';
+      const yoId = data.yo?.id;
+      body.innerHTML = rows.map((r, i) => {
+        const pos = i + 1;
+        const esYo = r.id === yoId;
+        return `
+          <tr class="${esYo ? 'ranking-me' : ''}">
+            <td><span class="ranking-pos ${pos <= 3 ? 'n' + pos : 'other'}">${pos}</span></td>
+            <td><span class="ranking-name"><span class="rn-badge">${BADGE_EMOJI[r.badge] || '👤'}</span><span>${esc(r.nombre)}</span></span></td>
+            <td>${Number(r.partidas).toLocaleString('es-MX')}</td>
+            <td>${Number(r.victorias).toLocaleString('es-MX')}</td>
+            <td class="${Number(r.ganancia_total) >= 0 ? 'pos-pos' : 'pos-neg'}">${fmtBalance(r.ganancia_total)}</td>
+          </tr>`;
+      }).join('');
     }
 
     /* ── Niveles y logros ─────────────────────────────────────── */

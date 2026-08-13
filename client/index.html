@@ -355,6 +355,34 @@
             box-shadow: 0 4px 14px rgba(200,160,69,.28);
         }
 
+        /* Botón Novedades (header) */
+        .btn-news {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            font-size: .8rem;
+            border-radius: 999px;
+            background: rgba(255,255,255,.04);
+            border: 1px solid rgba(255,255,255,.14);
+            color: var(--text-dim);
+            cursor: pointer;
+            font-family: inherit;
+            position: relative;
+            transition: all .15s ease;
+        }
+        .btn-news:hover {
+            background: rgba(200,160,69,.12);
+            color: var(--gold-hi);
+            border-color: rgba(200,160,69,.4);
+        }
+        .btn-news i { color: var(--gold); }
+        #news-badge {
+            position: absolute; top: -4px; right: -4px;
+            min-width: 9px; height: 9px; border-radius: 50%;
+            background: #e74c3c; box-shadow: 0 0 8px rgba(231,76,60,.7);
+        }
+
         /* Mesa caliente */
         .hot-badge {
             display: inline-flex;
@@ -509,6 +537,55 @@
         .room-row.full { opacity: .55; }
         .rooms-empty { text-align: center; color: var(--text-muted); font-size: .82rem; padding: 26px 12px; line-height: 1.6; }
         .rooms-actions { display: flex; gap: 10px; justify-content: center; }
+
+        /* Modal Novedades */
+        .changelog-overlay {
+            position: fixed; inset: 0; z-index: 600;
+            background: rgba(0,0,0,.75); backdrop-filter: blur(4px);
+            display: none; align-items: center; justify-content: center;
+        }
+        .changelog-overlay.show { display: flex; }
+        .changelog-modal {
+            width: min(560px, 92vw);
+            max-height: 82vh;
+            display: flex; flex-direction: column; gap: 14px;
+            background: linear-gradient(160deg, #1a3d28, #0d1f14);
+            border: 1px solid rgba(200,160,69,.25);
+            border-radius: 16px;
+            padding: 24px 22px;
+            animation: fadeUp .25s ease both;
+        }
+        .changelog-title {
+            font-family: 'Cormorant Garamond', serif;
+            color: var(--gold); font-size: 1.25rem; margin: 0;
+            text-align: center; letter-spacing: 1px;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .changelog-list {
+            overflow-y: auto;
+            display: flex; flex-direction: column; gap: 12px;
+            padding-right: 4px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--gold-dim) transparent;
+        }
+        .changelog-entry {
+            background: rgba(255,255,255,.04);
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 11px;
+            padding: 12px 14px;
+            animation: fadeUp .4s var(--eout) backwards;
+        }
+        .changelog-entry.new { border-color: rgba(200,160,69,.45); background: rgba(200,160,69,.07); }
+        .changelog-ver { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--gold-hi); font-size: .85rem; }
+        .changelog-tag { font-size: .55rem; text-transform: uppercase; letter-spacing: 1px; background: linear-gradient(135deg, rgba(200,160,69,.28), rgba(184,146,10,.18)); border: 1px solid rgba(200,160,69,.4); color: var(--gold-hi); padding: 2px 7px; border-radius: 999px; }
+        .changelog-date { font-size: .7rem; color: var(--text-muted); margin-left: auto; }
+        .changelog-titulo { font-size: .9rem; color: var(--text); margin: 4px 0 6px; }
+        .changelog-entry ul { margin: 0; padding-left: 18px; }
+        .changelog-entry li { font-size: .78rem; color: var(--text-dim); line-height: 1.55; margin-bottom: 3px; }
+        .changelog-actions { display: flex; gap: 10px; justify-content: center; }
+        @media (prefers-reduced-motion: reduce) {
+            .changelog-modal, .changelog-entry { animation: none !important; }
+        }
 
         .chip-stack { position: absolute; top: 16px; right: 16px; width: 26px; height: 26px; pointer-events: none; }
         .chip {
@@ -860,8 +937,9 @@
                     <p class="hub-date" id="hub-date"><i class="ph ph-calendar-blank"></i></p>
                 </div>
                 <div class="hub-right">
+                    <button class="btn-news" onclick="openChangelog()" id="btn-news"><i class="ph ph-newspaper"></i>Novedades<span id="news-badge" style="display:none"></span></button>
                     <button class="btn-explore" onclick="openRoomsBrowser()"><i class="ph ph-fire"></i>Mesas públicas</button>
-                    <span class="hub-pill">beta v0.5.1</span>
+                    <span class="hub-pill">beta v0.5.3</span>
                     <div class="deco-cards" id="deco-cards" aria-hidden="true">
                         <div class="deco-card" style="--i:0"><b>A</b><i class="ph ph-spade-fill"></i></div>
                         <div class="deco-card" style="--i:1"><b>K</b><i class="ph ph-heart-fill"></i></div>
@@ -1046,7 +1124,7 @@
 
             <footer class="hub-foot">
                 <i class="ph ph-spade-fill"></i>
-                <span>Continental · beta v0.5.1</span>
+                <span>Continental · beta v0.5.3</span>
             </footer>
         </main>
     </div>
@@ -1068,6 +1146,18 @@
             <div class="guide-settings-actions">
                 <button class="guide-secondary-btn" onclick="closeGuideSettings()">Cerrar</button>
                 <button class="guide-primary-btn" onclick="startGuideFromSettings()">Ver guía aquí</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="guide-settings-overlay" id="welcome-overlay">
+        <div class="guide-settings-backdrop" onclick="dismissWelcome()"></div>
+        <div class="guide-settings-modal">
+            <h3><i class="ph ph-star-four"></i>¡Bienvenido a Continental!</h3>
+            <p>Si es tu primera vez te recomendamos la <strong>guía rápida</strong>: te muestra cómo crear una sala, unirte a una mesa y arrancar la partida. También podés ver las Novedades recientes cuando quieras.</p>
+            <div class="guide-settings-actions">
+                <button class="guide-secondary-btn" onclick="dismissWelcome()">Más tarde</button>
+                <button class="guide-primary-btn" onclick="startWelcomeGuide()">Ver guía rápida</button>
             </div>
         </div>
     </div>
@@ -1128,6 +1218,17 @@
         <div class="rooms-actions">
           <button class="btn btn-hub btn-hub--ghost" onclick="refreshRoomsBrowser()" style="width:auto;padding:10px 18px"><i class="ph ph-arrows-clockwise"></i>Actualizar</button>
           <button class="btn btn-hub" onclick="closeRoomsBrowser()" style="width:auto;padding:10px 18px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--text-dim)">Cerrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== MODAL NOVEDADES ===== -->
+    <div class="changelog-overlay" id="changelog-overlay" onclick="if(event.target===this)closeChangelog()">
+      <div class="changelog-modal">
+        <h3 class="changelog-title"><i class="ph ph-newspaper"></i>Novedades</h3>
+        <div class="changelog-list" id="changelog-list"><div class="rooms-empty">Cargando novedades…</div></div>
+        <div class="changelog-actions">
+          <button class="btn btn-hub" onclick="closeChangelog()" style="width:auto;padding:10px 18px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--text-dim)">Cerrar</button>
         </div>
       </div>
     </div>

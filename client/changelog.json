@@ -1,0 +1,36 @@
+[
+  {
+    "version": "v0.5.3",
+    "fecha": "13 ago 2026",
+    "titulo": "Novedades, tutorial y ranking",
+    "cambios": [
+      "Apartado de Novedades en el lobby para enterarte de cada actualización.",
+      "Guía automática para jugadores nuevos en su primera visita y primera partida.",
+      "Panel de Ranking en tu perfil: top jugadores y tu posición.",
+      "Correcciones y pulido general."
+    ]
+  },
+  {
+    "version": "v0.5.2",
+    "fecha": "ago 2026",
+    "titulo": "Mejoras de partida",
+    "cambios": [
+      "Timer de turno con auto-jugada: si tardás, el juego avanza solo (60s conectado, 30s desconectado).",
+      "Chat libre en la mesa (además de las reacciones rápidas).",
+      "Botón Revancha: al terminar, el host puede reiniciar la partida con los mismos asientos.",
+      "Si el host se desconecta, el host pasa a otro jugador conectado.",
+      "Las mesas terminadas se cierran solas a los 10 minutos.",
+      "Mejor manejo de desconexiones y limpieza de salas."
+    ]
+  },
+  {
+    "version": "v0.5.1",
+    "fecha": "ago 2026",
+    "titulo": "Optimización y correcciones",
+    "cambios": [
+      "Render mucho más fluido (hasta +60% de FPS en mesas de 4 jugadores).",
+      "Corrección de puntos de experiencia: ahora todos los jugadores reciben su XP y logros.",
+      "Reordenamiento de asientos en la mesa."
+    ]
+  }
+]
