@@ -1,11 +1,15 @@
 'use strict';
-const { GameEngine } = require('./GameEngine');
+const { GameEngine, PUNTOS } = require('./GameEngine');
 const { randomUUID } = require('crypto');
 const pool = require('./db');
 const { aplicarLogrosPartida } = require('./logros');
 
-const ROOM_TIMEOUT_MS  = 6 * 60 * 60 * 1000;
-const ANTE_MIN_JOIN    = 100;
+const ROOM_TIMEOUT_MS      = 6 * 60 * 60 * 1000;
+const ROOM_FIN_TIMEOUT_MS  = 10 * 60 * 1000;
+const ANTE_MIN_JOIN        = 100;
+const TURN_TIMEOUT_CONNECTED    = 60 * 1000;  // 1 min para jugadores conectados
+const TURN_TIMEOUT_DISCONNECTED = 30 * 1000;  // 30 s para desconectados
+const ACK_TIMEOUT_MS            = 20 * 1000;  // auto-confirma ack de ronda
 
 class GameRoom {
   constructor({ code, host, mode = 'realtime', maxPlayers = 5, publicRoom = false, conApuesta = false }) {
@@ -21,8 +25,194 @@ class GameRoom {
     this.createdAt  = Date.now();
     this.host       = host;
     this._partidaRegistrada = false;
+    this._turnTimer = null;
+    this._turnDeadlineAt = null;
+    this._ackTimer  = null;
+    this._finJuegoAt = null;
 
     this.addPlayer(host.id, host.nombre, host.ws, host.badge || null, host.skin || 'clasico', host.rol || 'jugador', host.userId || null, host.chips);
+  }
+
+  // ─── Timer de turno / auto-jugada ───────────────────────
+  // Si el jugador activo no actúa en el plazo (60 s conectado / 30 s
+  // desconectado), el motor juega solo para no trabar la partida.
+  _clearTurnTimer() {
+    if (this._turnTimer) { clearTimeout(this._turnTimer); this._turnTimer = null; }
+    this._turnDeadlineAt = null;
+  }
+
+  _scheduleTurnTimer() {
+    if (!this.engine || this.status !== 'playing') return;
+    const eng = this.engine;
+    if (eng.estado === 'fin_ronda' || eng.estado === 'fin_juego') {
+      this._clearTurnTimer();
+      return;
+    }
+    let active;
+    if (eng.estado === 'fase_castigo' && eng.castigo_idx >= 0) {
+      active = eng.jugadores[eng.castigo_idx];
+    } else {
+      active = eng.jActivo;
+    }
+    const timeout = active?.conectado ? TURN_TIMEOUT_CONNECTED : TURN_TIMEOUT_DISCONNECTED;
+    this._clearTurnTimer();
+    this._turnDeadlineAt = Date.now() + timeout;
+    this._turnTimer = setTimeout(() => this._runAutoAction(), timeout);
+    if (typeof this._turnTimer.unref === 'function') this._turnTimer.unref();
+  }
+
+  _bestDiscard(j) {
+    if (!j?.mano || !j.mano.length) return null;
+    return j.mano.reduce((best, c) => {
+      const pts = c.comodin ? 50 : (PUNTOS[c.valor] || 10);
+      const bpts = best.comodin ? 50 : (PUNTOS[best.valor] || 10);
+      return pts >= bpts ? c : best;
+    });
+  }
+
+  _runAutoAction() {
+    this._turnTimer = null;
+    this._turnDeadlineAt = null;
+    if (!this.engine || this.status !== 'playing') return;
+    const eng = this.engine;
+
+    const ejecutar = (fn) => {
+      let result;
+      try { result = fn(); } catch (e) {
+        console.error('[ROOM]', this.code, 'error en auto-jugada', e);
+        return;
+      }
+      if (!result || !result.ok) {
+        console.warn('[ROOM]', this.code, 'auto-jugada ignorada:', result?.error || 'sin resultado');
+        this._scheduleTurnTimer();
+        return;
+      }
+      this._afterAction(result, null);
+    };
+
+    switch (eng.estado) {
+      case 'fase_castigo': {
+        const target = eng.jugadores[eng.castigo_idx];
+        if (target) ejecutar(() => eng.acCastigo(target.id, false));
+        break;
+      }
+      case 'esperando_robo': {
+        const act = eng.jActivo;
+        if (!act) break;
+        const r1 = eng.acTomarMazo(act.id);
+        if (!r1 || !r1.ok) {
+          if (r1) this._afterAction(r1, null);
+          else this._scheduleTurnTimer();
+          break;
+        }
+        // Robó bien: si sigue su turno, paga la carta de mayor riesgo ya mismo.
+        if ((eng.estado === 'esperando_accion' || eng.estado === 'esperando_pago')) {
+          const best = this._bestDiscard(act);
+          if (best) {
+            ejecutar(() => eng.acPagar(act.id, best.id));
+            return;
+          }
+        }
+        this._afterAction(r1, null);
+        break;
+      }
+      case 'esperando_accion':
+      case 'esperando_pago': {
+        const act = eng.jActivo;
+        if (!act) break;
+        const best = this._bestDiscard(act);
+        if (best) ejecutar(() => eng.acPagar(act.id, best.id));
+        else this._scheduleTurnTimer();
+        break;
+      }
+      default:
+        this._scheduleTurnTimer();
+    }
+  }
+
+  _afterAction(result, actorId) {
+    if (!result || !result.ok) return;
+    const eng = this.engine;
+    if (eng?._pendingReinicio) {
+      eng._pendingReinicio = false;
+      this._broadcastState('nueva_ronda', { ronda: eng.ronda, reinicio: true });
+      this._scheduleTurnTimer();
+      return;
+    }
+    if (result.event === 'fin_juego') {
+      result.data = { ...(result.data || {}), hostId: this.players[0]?.id || null };
+    }
+    if (result.broadcast !== false) {
+      this._broadcastState(result.event, result.data);
+    } else {
+      const p = this.players.find(q => q.id === actorId);
+      this._send(p, {
+        type: 'state_update',
+        event: result.event,
+        state: eng.stateFor(actorId, { includeLog: p?.rol === 'owner' }),
+      });
+    }
+    if (result.event === 'fin_ronda') {
+      this._persistirFichas();
+    }
+    if (result.event === 'fin_juego') {
+      this._persistirFichas();
+      this._registrarPartida();
+      this._finJuegoAt = Date.now();
+    }
+    this._scheduleTurnTimer();
+  }
+
+  // Si el host se desconecta, el host pasa al siguiente jugador conectado.
+  _transferHostIfNeeded() {
+    const host = this.players[0];
+    if (!host || host.conectado) return false;
+    const next = this.players.find(q => q.conectado && q.id !== host.id);
+    if (!next) return false;
+    const idx = this.players.indexOf(next);
+    this.players.splice(idx, 1);
+    this.players.unshift(next);
+    next.rol = 'owner';
+    host.rol = 'jugador';
+    this.broadcast({ type: 'host_transfer', hostId: next.id, lobbyState: this.lobbyState() });
+    console.log('[ROOM]', this.code, 'host transferido a', next.nombre);
+    return true;
+  }
+
+  // Si alguien no confirma el fin de ronda, se auto-confirma pasado el plazo.
+  _forceFinalizarRonda() {
+    if (!this.engine || this.engine.estado !== 'fin_ronda') return;
+    this.readyAcks.clear();
+    const result = this.engine.finalizarRonda();
+    if (result.event === 'fin_juego') {
+      result.data = { ...(result.data || {}), hostId: this.players[0]?.id || null };
+    }
+    this._broadcastState(result.event, result.data);
+    if (result.event === 'fin_juego') {
+      this._persistirFichas();
+      this._registrarPartida();
+      this._finJuegoAt = Date.now();
+    }
+    this._scheduleTurnTimer();
+  }
+
+  rematch() {
+    if (!this.engine || this.engine.estado !== 'fin_juego') {
+      return { ok: false, error: 'No hay partida terminada para revancha.' };
+    }
+    this.readyAcks.clear();
+    this._partidaRegistrada = false;
+    this._finJuegoAt = null;
+    this._clearTurnTimer();
+    this.status = 'lobby';
+    const result = this.startGame();
+    if (!result.ok) return result;
+    return { ok: true };
+  }
+
+  isFinishedExpired() {
+    return this._finJuegoAt !== null && this._finJuegoAt !== undefined &&
+           (Date.now() - this._finJuegoAt > ROOM_FIN_TIMEOUT_MS);
   }
 
   addPlayer(id, nombre, ws, badge = null, skin = 'clasico', rol = 'jugador', userId = null, chips = null) {
@@ -47,6 +237,7 @@ class GameRoom {
       if (this.engine) {
         this._broadcastState('player_connection_changed', { playerId: id, conectado: true });
       }
+      this._scheduleTurnTimer();
       return p;
     }
     const sameSocketPlayer = this.players.find(p => p.ws === ws);
@@ -112,6 +303,8 @@ class GameRoom {
       const ej = this.engine._findPlayer(id);
       if (ej) ej.conectado = false;
     }
+    this._transferHostIfNeeded();
+    this._scheduleTurnTimer();
     this.broadcast({ type: 'player_disconnected', nombre: p.nombre, lobbyState: this.lobbyState() });
     if (this.engine) {
       this._broadcastState('player_connection_changed', { playerId: id, conectado: false });
@@ -127,6 +320,8 @@ class GameRoom {
       const ej = this.engine._findPlayer(id);
       if (ej) ej.conectado = false;
     }
+    this._transferHostIfNeeded();
+    this._scheduleTurnTimer();
     console.log('[ROOM]', this.code, 'asiento liberado', { player: p.nombre });
     this.broadcast({ type: 'player_left', nombre: p.nombre, lobbyState: this.lobbyState() });
   }
@@ -156,6 +351,8 @@ class GameRoom {
     this.engine.repartir();
     this.engine._cobrarAnte();
     this.status = 'playing';
+    this.readyAcks.clear();
+    this._scheduleTurnTimer();
     return { ok: true };
   }
 
@@ -254,18 +451,7 @@ class GameRoom {
       return result;
     }
 
-    if (result.broadcast !== false) {
-      this._broadcastState(result.event, result.data);
-    } else {
-      const p = this.players.find(p => p.id === playerId);
-      this._send(p, {
-        type: 'state_update',
-        event: result.event,
-        state: this.engine.stateFor(playerId, { includeLog: p?.rol === 'owner' })
-      });
-    }
-
-      if (result.event === 'fin_juego') { this._persistirFichas(); this._registrarPartida(); }
+    this._afterAction(result, playerId);
 
     return result;
   }
@@ -275,11 +461,27 @@ class GameRoom {
     const connectedPlayers = this.players.filter(p => p.conectado);
     const connected = connectedPlayers.map(p => p.id);
     if (connected.every(id => this.readyAcks.has(id))) {
+      if (this._ackTimer) { clearTimeout(this._ackTimer); this._ackTimer = null; }
       this.readyAcks.clear();
       const result = this.engine.finalizarRonda();
+      if (result.event === 'fin_juego') {
+        result.data = { ...(result.data || {}), hostId: this.players[0]?.id || null };
+      }
       this._broadcastState(result.event, result.data);
-    if (result.event === 'fin_juego') { this._persistirFichas(); this._registrarPartida(); }
+      if (result.event === 'fin_juego') {
+        this._persistirFichas();
+        this._registrarPartida();
+        this._finJuegoAt = Date.now();
+      }
+      this._scheduleTurnTimer();
     } else {
+      if (!this._ackTimer) {
+        this._ackTimer = setTimeout(() => {
+          this._ackTimer = null;
+          this._forceFinalizarRonda();
+        }, ACK_TIMEOUT_MS);
+        if (typeof this._ackTimer.unref === 'function') this._ackTimer.unref();
+      }
       const readyPlayerIds = connected.filter(id => this.readyAcks.has(id));
       this._broadcastState('esperando_siguiente_ronda', {
         readyCount: readyPlayerIds.length,
@@ -383,6 +585,7 @@ class GameRoom {
     this.players.forEach(p => {
       if (!p.ws || !p.conectado) return;
       const state = this.engine ? this.engine.stateFor(p.id, { includeLog: p.rol === 'owner' }) : null;
+      if (state) state.turnDeadlineAt = this._turnDeadlineAt ?? null;
       this._send(p, { type: 'state_update', event, data, state, tableColor: this.tableColor || 'green' });
     });
   }
@@ -407,6 +610,8 @@ class GameRoom {
   }
 
   forceClose(reason = 'Mesa cerrada por administración.') {
+    this._clearTurnTimer();
+    if (this._ackTimer) { clearTimeout(this._ackTimer); this._ackTimer = null; }
     this.players.forEach(player => {
       if (!player.ws) return;
       this._send(player, { type: 'room_closed', code: this.code, msg: reason });

@@ -32,7 +32,7 @@ const ACTIVE_GAME_KEY = 'continental_active_game';
 const GUIDE_ENABLED_KEY = 'continental_guide_enabled';
 const GUIDE_DONE_GAME_KEY = 'continental_guide_done_game';
 const SESSION_USER = JSON.parse(localStorage.getItem('usuario') || 'null');
-const IS_OWNER = SESSION_USER?.rol === 'owner';
+let IS_OWNER = SESSION_USER?.rol === 'owner';
 
 let G = null;
 let myIdx = -1;
@@ -1349,6 +1349,14 @@ function setupSocketEvents() {
         toast(msg || 'La mesa fue cerrada por administración.', 'red');
         setTimeout(() => { location.href = '/'; }, 900);
     });
+    WS.on('host_transfer', ({ hostId }) => {
+        const me = G?.jugadores?.[myIdx];
+        if (!me || !hostId || me.id !== hostId) return;
+        IS_OWNER = true;
+        const button = document.getElementById('owner-console-btn');
+        if (button) button.style.display = 'inline-flex';
+        toast('👑 Ahora sos el host de la mesa.', 'green');
+    });
     WS.on('progreso', (p) => {
         if (!p) return;
         const stored = JSON.parse(localStorage.getItem('usuario') || '{}');
@@ -1454,6 +1462,8 @@ async function applyEvent(event, data, prev) {
         case 'esperando_siguiente_ronda':
             break;
     }
+
+    startTurnCountdown();
 }
 
 async function handleNewRound() {
@@ -1462,6 +1472,9 @@ async function handleNewRound() {
     selectedComodinInfo = null;
     buildingCards.clear();
     _animatedBajadas.clear();
+
+    document.getElementById('podio-overlay')?.remove();
+    stopTurnCountdown();
 
     const mazoEl  = document.getElementById('mazo-wrap');
     const handZone = document.getElementById('discard-zone');
@@ -3704,7 +3717,7 @@ function showModalJuego(data) {
     document.getElementById('modal-ronda')?.classList.remove('show');
     SFX.play('victoria');
     showConfetti();
-    showPodio(data.jugadores, data.fichas, data.bancaRepartida, data.conApuesta);
+    showPodio(data.jugadores, data.fichas, data.bancaRepartida, data.conApuesta, data.hostId);
 }
 
 function startNewGameFromPodium() {
@@ -3716,6 +3729,12 @@ function startNewGameFromPodium() {
         return;
     }
     location.href = '/';
+}
+
+function rematchFromPodium() {
+    if (WS?.ws?.readyState === WebSocket.OPEN) {
+        WS.send({ type: 'rematch' });
+    }
 }
 
 function showConfetti() {
@@ -3739,7 +3758,7 @@ function showConfetti() {
     }
 }
 
-function showPodio(jugadores, fichas, bancaRepartida, conApuesta) {
+function showPodio(jugadores, fichas, bancaRepartida, conApuesta, hostId) {
     const sorted = [...jugadores].map((j, idx) => ({ ...j, idx })).sort((a, b) => a.pts_t - b.pts_t);
     const fichasMap = {};
     (Array.isArray(fichas) ? fichas : []).forEach(f => { fichasMap[f.jugadorIdx] = f; });
@@ -3801,10 +3820,13 @@ function showPodio(jugadores, fichas, bancaRepartida, conApuesta) {
         cards.push(card);
     });
 
-    // Botón nueva partida
+    // Botones: revancha (host) + nueva partida
     const btnWrap = document.createElement('div');
     btnWrap.className = 'podio-btn-wrap';
-    btnWrap.innerHTML = `<button class="podio-new-btn" onclick="startNewGameFromPodium()">Nueva Partida →</button>`;
+    const isHostHere = hostId ? hostId === MY_ID : (G?.jugadores?.[0]?.id === MY_ID);
+    btnWrap.innerHTML = `
+        ${isHostHere ? '<button class="podio-new-btn" onclick="rematchFromPodium()">🔄 Revancha</button>' : ''}
+        <button class="podio-new-btn" onclick="startNewGameFromPodium()">Nueva Partida →</button>`;
     overlay.appendChild(btnWrap);
 
     document.body.appendChild(overlay);
@@ -3885,6 +3907,34 @@ function toast(msg, type = 'red') {
         t.classList.remove('show');
         setTimeout(() => { t.style.display = 'none'; }, 220);
     }, 2600);
+}
+
+// ─── Cuenta regresiva del turno ──────────────────────────────
+let _turnCountdownInterval = null;
+
+function stopTurnCountdown() {
+    if (_turnCountdownInterval) { clearInterval(_turnCountdownInterval); _turnCountdownInterval = null; }
+    const el = document.getElementById('turn-timer');
+    if (el) el.classList.remove('show', 'urgent');
+}
+
+function startTurnCountdown() {
+    stopTurnCountdown();
+    const el = document.getElementById('turn-timer');
+    if (!el || !G) return;
+    const deadline = G.turnDeadlineAt;
+    const esMiTurno = G.turno === myIdx;
+    const enCastigo = G.estado === 'fase_castigo' && G.castigo_idx === myIdx;
+    if (!deadline || (!esMiTurno && !enCastigo) || ['fin_ronda', 'fin_juego'].includes(G.estado)) return;
+    const tick = () => {
+        const remain = deadline - Date.now();
+        if (remain <= 0) { stopTurnCountdown(); return; }
+        el.textContent = `${Math.max(1, Math.ceil(remain / 1000))}s`;
+        el.classList.add('show');
+        el.classList.toggle('urgent', remain <= 10000);
+    };
+    tick();
+    _turnCountdownInterval = setInterval(tick, 250);
 }
 
 // Exponer funciones para los onclick

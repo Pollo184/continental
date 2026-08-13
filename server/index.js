@@ -276,21 +276,28 @@ function broadcastRoomsList () {
   for (const ws of clients.keys()) send(ws, { type: 'rooms_list', rooms: list });
 }
 
+// Limpia salas expiradas: >6h, terminadas hace más de 10 min (ventana de
+// revancha) o vacías en lobby. Corre cada 60s.
 setInterval(() => {
   for (const [code, room] of rooms) {
-    if (room.isExpired() || (room.isEmpty() && room.status === 'lobby'))
+    if (room.isExpired() || room.isFinishedExpired() || (room.isEmpty() && room.status === 'lobby')) {
+      room.forceClose('Mesa cerrada por inactividad.');
       rooms.delete(code);
+      if (room.public) broadcastRoomsList();
+    }
   }
-}, 30 * 60 * 1000);
+}, 60 * 1000);
 
 // Ping nativo del servidor a todos los clientes cada 15s
 // Esto mantiene viva la conexión a través del proxy de Railway
 const serverPingInterval = setInterval(() => {
   wss.clients.forEach(client => {
-    if (client.readyState === 1) { // OPEN
-      client.lastServerPingAt = Date.now();
-      client.ping();
-    }
+    if (client.readyState !== 1) return; // no OPEN
+    // Sin pong en el ciclo anterior → socket muerto, lo cerramos.
+    if (client.isAlive === false) return client.terminate();
+    client.isAlive = false;
+    client.lastServerPingAt = Date.now();
+    client.ping();
   });
 }, 15000);
 
@@ -477,10 +484,12 @@ wss.on('connection', (ws, req) => {
           if (room.public) broadcastRoomsList();
 
           if (room.engine && wasReconnecting) {
+            const reconnectState = room.engine.stateFor(player.id, { includeLog: player.rol === 'owner' });
+            reconnectState.turnDeadlineAt = room._turnDeadlineAt ?? null;
             send(ws, {
               type: 'state_update',
               event: 'reconnect',
-              state: room.engine.stateFor(player.id, { includeLog: player.rol === 'owner' }),
+              state: reconnectState,
               tableColor: room.tableColor || 'green'
             });
           }
@@ -510,6 +519,31 @@ wss.on('connection', (ws, req) => {
             nombre: String(msg.nombre || ctx.nombre || '').slice(0, 18),
           };
           room.broadcast(safeMsg, ctx.playerId);
+          break;
+        }
+
+        case 'chat': {
+          const room = rooms.get(ctx.roomCode);
+          if (!room || !ctx.playerId) return;
+          const texto = String(msg.texto || '').trim().slice(0, 200);
+          if (!texto) return;
+          room.broadcast({
+            type:   'chat',
+            texto,
+            nombre: String(ctx.nombre || '').slice(0, 18),
+          }, ctx.playerId);
+          break;
+        }
+
+        case 'rematch': {
+          const room = rooms.get(ctx.roomCode);
+          if (!room) return send(ws, { type: 'error', msg: 'Sala no encontrada.' });
+          if (room.players[0]?.id !== ctx.playerId)
+            return send(ws, { type: 'error', msg: 'Solo el host puede iniciar la revancha.' });
+          const result = room.rematch();
+          if (!result.ok) return send(ws, { type: 'error', msg: result.error });
+          room._broadcastState('game_started', { rematch: true });
+          if (room.public) broadcastRoomsList();
           break;
         }
 

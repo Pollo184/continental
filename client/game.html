@@ -1707,6 +1707,47 @@ select:focus-visible {
   text-transform: uppercase; letter-spacing: 1px;
 }
 
+.chat-input-row {
+  display: flex; gap: 5px; align-items: center;
+  padding: 7px 8px 0;
+}
+.chat-input-row input {
+  flex: 1; min-width: 0;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(200,160,69,.25);
+  border-radius: 8px;
+  color: var(--text); font-family: 'Outfit', sans-serif;
+  font-size: 0.72rem; padding: 6px 9px; outline: none;
+  transition: border-color 0.15s;
+}
+.chat-input-row input:focus { border-color: rgba(200,160,69,.6); }
+.chat-input-row input::placeholder { color: var(--text-muted); }
+#chat-send {
+  width: 30px; height: 30px; flex: none;
+  border-radius: 8px; cursor: pointer;
+  background: linear-gradient(135deg, #c8a045, #9a7728);
+  border: none; color: #1a1a1a; font-size: 0.85rem;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.15s, filter 0.15s;
+}
+#chat-send:hover { filter: brightness(1.12); transform: scale(1.05); }
+#chat-send:active { transform: scale(.9); }
+
+#turn-timer {
+  position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+  display: none; align-items: center; gap: 6px;
+  padding: 5px 14px; border-radius: 999px;
+  background: linear-gradient(135deg, rgba(14,36,25,.95), rgba(8,20,14,.95));
+  border: 1px solid rgba(200,160,69,.5);
+  color: var(--gold-hi); font-weight: 700; font-size: 0.85rem;
+  letter-spacing: .04em;
+  z-index: 9992; box-shadow: 0 4px 18px rgba(0,0,0,.55);
+  pointer-events: none;
+}
+#turn-timer.show { display: inline-flex; }
+#turn-timer.urgent { color: #ff6b6b; border-color: rgba(255,107,107,.65); animation: timerPulse 1s ease infinite; }
+@keyframes timerPulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
 .chat-messages {
   max-height: 130px;
   overflow-y: auto;
@@ -2293,6 +2334,7 @@ select:focus-visible {
 
   <div id="toast"></div>
   <div id="notif-stack"></div>
+  <div id="turn-timer"></div>
 
 </div><!-- /game -->
 
@@ -2302,6 +2344,10 @@ select:focus-visible {
 
   <div id="chat-panel">
     <div class="chat-header"><i class="ph ph-chats"></i>Reacciones</div>
+    <div class="chat-input-row">
+      <input id="chat-input" type="text" maxlength="200" placeholder="Escribí un mensaje…" autocomplete="off">
+      <button id="chat-send" onclick="sendChatMessage()" title="Enviar"><i class="ph ph-paper-plane-tilt"></i></button>
+    </div>
     <div class="chat-messages" id="chat-messages"></div>
 
     <div class="chat-section-label">Emojis</div>
@@ -2391,6 +2437,28 @@ select:focus-visible {
     if (typeof G !== 'undefined' && G &&
         G.jugadores[myIdx]?.nombre === msg.nombre) return;
     showReaction(msg);
+  });
+
+  window.sendChatMessage = function () {
+    const input = document.getElementById('chat-input');
+    const texto = (input.value || '').trim().slice(0, 200);
+    if (!texto) return;
+    if (typeof G === 'undefined' || !G) return;
+    const nombre = G.jugadores[myIdx]?.nombre || 'Yo';
+    WS.send({ type: 'chat', texto, nombre });
+    appendChatMessage(nombre, texto);
+    input.value = '';
+    input.focus();
+  };
+
+  document.getElementById('chat-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); window.sendChatMessage(); }
+  });
+
+  WS.on('chat', (msg) => {
+    if (typeof G !== 'undefined' && G &&
+        G.jugadores[myIdx]?.nombre === msg.nombre) return;
+    appendChatMessage(msg.nombre, msg.texto || '');
   });
 
   // Emojis que disparan emoji gigante
