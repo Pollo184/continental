@@ -2682,11 +2682,13 @@ function renderPot() {
     const potArea = document.getElementById('pot-area');
     const potVal  = document.getElementById('pot-value');
     const potBanca = document.getElementById('pot-banca');
+    const potAnte = document.getElementById('pot-ante');
     const esApuesta = !!G?.conApuesta;
     if (potArea) potArea.style.display = esApuesta ? 'flex' : 'none';
     if (!esApuesta) return;
     if (potVal)   potVal.textContent   = fmtChips(G.pot ?? 0);
     if (potBanca) potBanca.textContent = `Banca · ${fmtChips(G.banca ?? 0)}`;
+    if (potAnte)  potAnte.textContent  = `Ante · ${fmtChips(G.ante ?? 0)}/rd`;
 }
 
 function updateHandScroll() {

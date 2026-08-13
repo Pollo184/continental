@@ -444,6 +444,32 @@
         .bet-chips { display: flex; align-items: center; gap: 5px; font-size: .72rem; color: var(--text-muted); }
         .bet-chips i { color: var(--gold-dim); }
         .bet-chips.warn { color: #ff9a8c; }
+        .bet-ante-row {
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+            margin-top: 2px;
+        }
+        .bet-ante-row label {
+            font-size: .7rem; color: var(--text-muted); font-weight: 600;
+            letter-spacing: .3px; text-transform: uppercase;
+        }
+        .bet-ante-input {
+            width: 84px;
+            background: rgba(255,255,255,.06);
+            border: 1px solid rgba(200,160,69,.25);
+            border-radius: 8px;
+            padding: 4px 8px;
+            color: var(--gold-hi);
+            font-family: 'Outfit', sans-serif;
+            font-size: .9rem;
+            font-weight: 700;
+            text-align: center;
+            outline: none;
+            transition: border-color .15s, background .15s;
+        }
+        .bet-ante-input:focus { border-color: var(--gold); background: rgba(200,160,69,.1); }
+        .bet-ante-input.invalid { border-color: #ff6b5e; background: rgba(216,90,79,.1); color: #ff9a8c; }
+        .bet-ante-hint { font-size: .66rem; color: var(--text-muted); }
+        .bet-ante-hint.invalid { color: #ff9a8c; }
         .side-user-chips {
             display: flex; align-items: center; gap: 6px;
             font-size: .72rem; color: var(--gold-hi);
@@ -939,7 +965,7 @@
                 <div class="hub-right">
                     <button class="btn-news" onclick="openChangelog()" id="btn-news"><i class="ph ph-newspaper"></i>Novedades<span id="news-badge" style="display:none"></span></button>
                     <button class="btn-explore" onclick="openRoomsBrowser()"><i class="ph ph-fire"></i>Mesas públicas</button>
-                    <span class="hub-pill">beta v0.5.3.1</span>
+                    <span class="hub-pill">beta v0.5.3.2</span>
                     <div class="deco-cards" id="deco-cards" aria-hidden="true">
                         <div class="deco-card" style="--i:0"><b>A</b><i class="ph ph-spade-fill"></i></div>
                         <div class="deco-card" style="--i:1"><b>K</b><i class="ph ph-heart-fill"></i></div>
@@ -1005,7 +1031,12 @@
                             </div>
 
                             <div class="bet-info" id="bet-info" style="display:none">
-                                <span><i class="ph ph-coins"></i> Cada quien apuesta <strong>100</strong> por ronda: <strong>50</strong> al ganador de ronda y <strong>50</strong> a la banca.</span>
+                                <div class="bet-ante-row">
+                                    <label for="bet-ante">Apuesta por ronda</label>
+                                    <input type="number" class="bet-ante-input" id="bet-ante" value="100" min="2" max="10000" step="2" inputmode="numeric" oninput="setRoomAnte(this.value)">
+                                    <span class="bet-ante-hint" id="bet-ante-hint">múltiplo de 2</span>
+                                </div>
+                                <span id="bet-info-ante"><i class="ph ph-coins"></i> Cada quien apuesta <strong>100</strong> por ronda: <strong>50</strong> al ganador de ronda y <strong>50</strong> a la banca.</span>
                                 <span><i class="ph ph-trophy"></i> Tras la 7ª ronda, el de menor puntaje se lleva la <strong>banca</strong> acumulada.</span>
                                 <span class="bet-chips" id="bet-my-chips"><i class="ph ph-wallet"></i>Tus fichas: <strong>0</strong> (mínimo 100)</span>
                             </div>
@@ -1051,7 +1082,7 @@
                             </li>
                             <li>
                                 <i class="ph ph-coins"></i>
-                                <span><strong>Mesas con apuesta</strong>Cada quien apuesta 100 por ronda: 50 al ganador y 50 a la banca. El de menor puntaje se la lleva.</span>
+                                <span><strong>Mesas con apuesta</strong>El anfitrión define la apuesta por ronda (múltiplo de 2): la mitad al ganador de ronda y la mitad a la banca. El de menor puntaje se la lleva.</span>
                             </li>
                         </ul>
                         <button class="btn btn-hub btn-hub--ghost" style="margin-top:2px" onclick="openGuideSettings()"><i class="ph ph-books"></i>Ver guía completa</button>
@@ -1124,7 +1155,7 @@
 
             <footer class="hub-foot">
                 <i class="ph ph-spade-fill"></i>
-                <span>Continental · beta v0.5.3.1</span>
+                <span>Continental · beta v0.5.3.2</span>
             </footer>
         </main>
     </div>

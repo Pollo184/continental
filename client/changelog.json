@@ -1,5 +1,15 @@
 [
   {
+    "version": "v0.5.3.2",
+    "fecha": "13 ago 2026",
+    "titulo": "Apuesta por ronda a medida",
+    "cambios": [
+      "El anfitrión elige la apuesta por ronda al crear una mesa con apuesta (múltiplo de 2).",
+      "La mitad de la apuesta va al ganador de ronda y la otra mitad a la banca.",
+      "El ante configurado se muestra en la sala de espera, en la lista de mesas públicas y dentro de la partida."
+    ]
+  },
+  {
     "version": "v0.5.3.1",
     "fecha": "13 ago 2026",
     "titulo": "Ordená tus sobrantes",

@@ -6,6 +6,7 @@ const { WebSocketServer } = require('ws');
 const path     = require('path');
 const { randomUUID } = require('crypto');
 const { GameRoom } = require('./GameRoom');
+const { ANTE_DEFAULT, ANTE_MIN, ANTE_MAX } = require('./GameEngine');
 const pool         = require('./db');
 const { rateLimitHit, isRateLimited } = require('./rate-limit');
 const { verifyAuthorized } = require('./jwt-utils');
@@ -250,11 +251,20 @@ function validateCode(code) {
   return null;
 }
 
+// Valida el ante recibido del cliente. Devuelve el entero válido (par, 2..10000)
+// o null si es inválido (el creador debe corregirlo).
+function sanitizeAnte(v) {
+  const n = Math.floor(Number(v));
+  if (Number.isFinite(n) && n >= ANTE_MIN && n <= ANTE_MAX && n % 2 === 0) return n;
+  return null;
+}
+
 function serializePublicRoom (room) {
   return {
     code:        room.code,
     hot:         room.maxPlayers === 5,
     conApuesta:  Boolean(room.conApuesta),
+    ante:        room.conApuesta ? room.ante : 0,
     maxPlayers:  room.maxPlayers,
     playerCount: room.players.length,
     tableColor:  room.tableColor || 'green',
@@ -372,9 +382,15 @@ wss.on('connection', (ws, req) => {
           if (isRateLimited(`ws-create:${ws._remoteAddress}`, 10, 10 * 60 * 1000))
             return send(ws, { type: 'error', msg: 'Creaste muchas salas. Espera unos minutos.' });
           rateLimitHit(`ws-create:${ws._remoteAddress}`, 10 * 60 * 1000);
-          const { nombre, mode = 'realtime', maxPlayers = 5, public: publicRoom = false, conApuesta = false } = msg;
+          const { nombre, mode = 'realtime', maxPlayers = 5, public: publicRoom = false, conApuesta = false, ante } = msg;
           const nameErr = validateNombre(nombre);
           if (nameErr) return send(ws, { type: 'error', msg: nameErr });
+
+          const quiereApuesta = Boolean(conApuesta);
+          const anteVal = sanitizeAnte(ante);
+          if (quiereApuesta && anteVal === null) {
+            return send(ws, { type: 'error', msg: `La apuesta por ronda debe ser un múltiplo de 2 entre ${ANTE_MIN} y ${ANTE_MAX} (la mitad va al ganador de ronda y la otra mitad a la banca).` });
+          }
 
           const safeNombre = nombre.trim();
           let code;
@@ -388,8 +404,8 @@ wss.on('connection', (ws, req) => {
 
           const { badge: hostBadge, skin: hostSkin, rol: hostRole, chips: hostChips } = await fetchPlayerProfile(ctx.userId, safeNombre);
 
-          if (Boolean(conApuesta) && (!Number.isInteger(hostChips) || hostChips < 100)) {
-            return send(ws, { type: 'error', msg: 'Necesitas al menos 100 fichas para crear una mesa con apuesta.' });
+          if (quiereApuesta && (!Number.isInteger(hostChips) || hostChips < anteVal)) {
+            return send(ws, { type: 'error', msg: `Necesitas al menos ${anteVal} fichas para crear una mesa con apuesta de ${anteVal}/ronda.` });
           }
 
           const room = new GameRoom({
@@ -398,7 +414,8 @@ wss.on('connection', (ws, req) => {
             mode,
             maxPlayers: Math.min(Math.max(Number(maxPlayers) || 4, 2), 5),
             publicRoom,
-            conApuesta: Boolean(conApuesta),
+            conApuesta: quiereApuesta,
+            ante: quiereApuesta ? anteVal : ANTE_DEFAULT,
           });
           rooms.set(code, room);
           logWs(`socket#${ws._socketId} creó sala ${code}`, {
@@ -407,6 +424,7 @@ wss.on('connection', (ws, req) => {
             maxPlayers: room.maxPlayers,
             public: room.public,
             conApuesta: room.conApuesta,
+            ante: room.ante,
           });
           const hostPlayer = room.players.find(p => p.id === playerId);
           send(ws, { type: 'room_created', code, playerId, seatToken: hostPlayer?.seatToken, lobbyState: room.lobbyState() });
@@ -451,8 +469,8 @@ wss.on('connection', (ws, req) => {
           const { badge: joinBadge, skin: joinSkin, rol: joinRole, chips: joinChips } = await fetchPlayerProfile(ctx.userId, safeNombre);
 
           const effectiveChips = ctx.userId ? joinChips : (existingSeat ? existingSeat.chips : null);
-          if (room.conApuesta && (!Number.isInteger(effectiveChips) || effectiveChips < 100)) {
-            return send(ws, { type: 'error', msg: 'Necesitas al menos 100 fichas para entrar a una mesa con apuesta.' });
+          if (room.conApuesta && (!Number.isInteger(effectiveChips) || effectiveChips < room.ante)) {
+            return send(ws, { type: 'error', msg: `Necesitas al menos ${room.ante} fichas para entrar a esta mesa (apuesta de ${room.ante}/ronda).` });
           }
 
           // Si el cliente no viene autenticado (ctx.userId null) pero retoma un

@@ -6,18 +6,18 @@ const { aplicarLogrosPartida } = require('./logros');
 
 const ROOM_TIMEOUT_MS      = 6 * 60 * 60 * 1000;
 const ROOM_FIN_TIMEOUT_MS  = 10 * 60 * 1000;
-const ANTE_MIN_JOIN        = 100;
 const TURN_TIMEOUT_CONNECTED    = 60 * 1000;  // 1 min para jugadores conectados
 const TURN_TIMEOUT_DISCONNECTED = 30 * 1000;  // 30 s para desconectados
 const ACK_TIMEOUT_MS            = 20 * 1000;  // auto-confirma ack de ronda
 
 class GameRoom {
-  constructor({ code, host, mode = 'realtime', maxPlayers = 5, publicRoom = false, conApuesta = false }) {
+  constructor({ code, host, mode = 'realtime', maxPlayers = 5, publicRoom = false, conApuesta = false, ante = 100 }) {
     this.code       = code;
     this.mode       = mode;
     this.maxPlayers = maxPlayers;
     this.public     = Boolean(publicRoom);
     this.conApuesta = Boolean(conApuesta);
+    this.ante       = this._sanitizeAnte(ante);
     this.status     = 'lobby';
     this.players    = [];
     this.readyAcks  = new Set();
@@ -31,6 +31,12 @@ class GameRoom {
     this._finJuegoAt = null;
 
     this.addPlayer(host.id, host.nombre, host.ws, host.badge || null, host.skin || 'clasico', host.rol || 'jugador', host.userId || null, host.chips);
+  }
+
+  _sanitizeAnte(v) {
+    const n = Math.floor(Number(v));
+    if (Number.isFinite(n) && n >= 2 && n <= 10000 && n % 2 === 0) return n;
+    return 100;
   }
 
   // ─── Timer de turno / auto-jugada ───────────────────────
@@ -331,7 +337,7 @@ class GameRoom {
     if (this.players.length < 2) return { ok: false, error: 'Se necesitan al menos 2 jugadores.' };
 
     if (this.conApuesta) {
-      const sinFichas = this.players.filter(p => !Number.isInteger(p.chips) || p.chips < ANTE_MIN_JOIN);
+      const sinFichas = this.players.filter(p => !Number.isInteger(p.chips) || p.chips < this.ante);
       if (sinFichas.length) {
         return { ok: false, error: `${sinFichas.map(p => p.nombre).join(', ')} no tiene suficientes fichas para esta mesa.` };
       }
@@ -346,7 +352,7 @@ class GameRoom {
         userId: p.userId || null,
         fichas: this.conApuesta ? p.chips : 0,
       })),
-      { conApuesta: this.conApuesta }
+      { conApuesta: this.conApuesta, ante: this.ante }
     );
     this.engine.repartir();
     this.engine._cobrarAnte();
@@ -647,6 +653,7 @@ class GameRoom {
       status: this.status,
       public: this.public,
       conApuesta: this.conApuesta,
+      ante: this.conApuesta ? this.ante : 0,
       players: this.players.map(p => ({ id: p.id, nombre: p.nombre, badge: p.badge || null, skin: p.skin || 'clasico', conectado: p.conectado })),
       maxPlayers: this.maxPlayers,
       tableColor: this.tableColor || 'green',

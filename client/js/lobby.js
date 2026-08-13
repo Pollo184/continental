@@ -21,6 +21,7 @@ const GUIDE_DONE_LOBBY_ROOM_KEY = 'continental_guide_done_lobby_room';
 let maxPlayers  = 4;
 let roomPublic  = false;
 let roomApuesta = false;
+let roomAnte    = 100;
 let myChips     = 0;
 let publicRooms = [];
 let myRoomPublic = false;
@@ -219,6 +220,9 @@ function setRoomPublic (v) {
 /* ================================================================
    APUESTAS (mesas con fichas)
    ================================================================ */
+const ANTE_MIN = 2;
+const ANTE_MAX = 10000;
+
 function setRoomApuesta (v) {
   roomApuesta = !!v;
   document.getElementById('seg-conapuesta')?.classList.toggle('active', roomApuesta);
@@ -227,16 +231,42 @@ function setRoomApuesta (v) {
   syncBetCreateState();
 }
 
+// La apuesta por ronda debe ser múltiplo de 2: la mitad va al ganador
+// de ronda y la otra mitad a la banca.
+function setRoomAnte (raw) {
+  const n = Math.floor(Number(raw));
+  const input = document.getElementById('bet-ante');
+  const hint  = document.getElementById('bet-ante-hint');
+  const anteInfo = document.getElementById('bet-info-ante');
+
+  const valido = Number.isFinite(n) && n >= ANTE_MIN && n <= ANTE_MAX && n % 2 === 0;
+  roomAnte = valido ? n : roomAnte;
+
+  input?.classList.toggle('invalid', !valido);
+  if (hint) {
+    hint.textContent = valido
+      ? `múltiplo de 2 (${(n / 2).toLocaleString('es-MX')} por mitad)`
+      : 'debe ser un número par entre 2 y 10.000';
+    hint.classList.toggle('invalid', !valido);
+  }
+  if (anteInfo) {
+    anteInfo.innerHTML = valido
+      ? `<i class="ph ph-coins"></i> Cada quien apuesta <strong>${fmtChips(n)}</strong> por ronda: <strong>${fmtChips(n / 2)}</strong> al ganador de ronda y <strong>${fmtChips(n / 2)}</strong> a la banca.`
+      : anteInfo.innerHTML;
+  }
+  syncBetCreateState();
+}
+
 function syncBetCreateState () {
   const btn = document.getElementById('btn-create-room');
   if (!btn) return;
   const chipsEl = document.getElementById('bet-my-chips');
-  if (chipsEl) chipsEl.innerHTML = `<i class="ph ph-wallet"></i>Tus fichas: <strong>${fmtChips(myChips)}</strong> (mínimo 100)`;
-  if (chipsEl) chipsEl.classList.toggle('warn', myChips < 100);
+  if (chipsEl) chipsEl.innerHTML = `<i class="ph ph-wallet"></i>Tus fichas: <strong>${fmtChips(myChips)}</strong> (mínimo ${fmtChips(roomAnte)})`;
+  if (chipsEl) chipsEl.classList.toggle('warn', myChips < roomAnte);
 
-  if (roomApuesta && myChips < 100) {
+  if (roomApuesta && myChips < roomAnte) {
     btn.disabled = true;
-    btn.innerHTML = '<i class="ph ph-coins"></i>Necesitas 100 fichas';
+    btn.innerHTML = `<i class="ph ph-coins"></i>Necesitas ${fmtChips(roomAnte)} fichas`;
   } else {
     btn.disabled = false;
     btn.innerHTML = '<i class="ph ph-play-fill"></i>Crear Sala';
@@ -368,13 +398,14 @@ function renderRoomsList (rooms, loading = false) {
   const tableColorName = { green: 'Verde', navy: 'Azul', wine: 'Vino', black: 'Negro' };
   list.innerHTML = rooms.map((r, i) => {
     const full = r.playerCount >= r.maxPlayers;
-    const sinFichas = r.conApuesta && myChips < 100;
+    const rAnte = r.ante || 100;
+    const sinFichas = r.conApuesta && myChips < rAnte;
     const delay = Math.min(i * 60, 500);
     const meta = `
       <span>${r.playerCount}/${r.maxPlayers} jugadores</span>
       <span class="room-table-dot" data-color="${r.tableColor}" style="display:inline-block;width:8px;height:8px;border-radius:50%"></span>
       <span>${tableColorName[r.tableColor] || 'Verde'}</span>
-      ${r.conApuesta ? `<span class="room-bet-tag ${sinFichas ? 'warn' : ''}"><i class="ph ph-coins"></i>${sinFichas ? 'Sin fichas' : 'Apuesta'}</span>` : ''}
+      ${r.conApuesta ? `<span class="room-bet-tag ${sinFichas ? 'warn' : ''}"><i class="ph ph-coins"></i>${sinFichas ? `Necesitas ${fmtChips(rAnte)}` : `Apuesta ${fmtChips(rAnte)}/rd`}</span>` : ''}
       ${r.hot ? '<span class="room-flame"><i class="ph ph-fire"></i>Caliente</span>' : ''}
     `;
     return `
@@ -387,7 +418,7 @@ function renderRoomsList (rooms, loading = false) {
           ${full
             ? '<button class="btn btn-hub" disabled style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--text-dim)">Llena</button>'
             : (sinFichas
-              ? `<button class="btn btn-hub" disabled style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--text-dim)" title="Necesitas al menos 100 fichas">Sin fichas</button>`
+              ? `<button class="btn btn-hub" disabled style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--text-dim)" title="Necesitas al menos ${fmtChips(rAnte)} fichas">Sin fichas</button>`
               : `<button class="btn btn-hub btn-hub--ghost" onclick="joinPublicRoom('${r.code}')"><i class="ph ph-sign-in"></i>Unirse</button>`)}
         </div>
       </div>`;
@@ -727,12 +758,20 @@ function crearSala () {
   const userId   = usuario?.id || null;
   if (!nombre) { window.location.href = '/login'; return; }
   if (lobbyActionPending) return;
-  if (roomApuesta && myChips < 100) {
-    toast('Necesitas al menos 100 fichas para una mesa con apuesta.');
-    return;
+  const anteInput = document.getElementById('bet-ante');
+  const anteVal = anteInput ? Math.floor(Number(anteInput.value)) : roomAnte;
+  if (roomApuesta) {
+    if (!Number.isFinite(anteVal) || anteVal < ANTE_MIN || anteVal > ANTE_MAX || anteVal % 2 !== 0) {
+      toast('La apuesta por ronda debe ser un múltiplo de 2 (mitad al ganador, mitad a la banca).', 'red');
+      return;
+    }
+    if (myChips < anteVal) {
+      toast(`Necesitas al menos ${fmtChips(anteVal)} fichas para una mesa con apuesta de ${fmtChips(anteVal)}/ronda.`, 'red');
+      return;
+    }
   }
   setLobbyActionPending(true);
-  WS.send({ type: 'create_room', nombre, userId, mode: 'realtime', maxPlayers, public: roomPublic, conApuesta: roomApuesta });
+  WS.send({ type: 'create_room', nombre, userId, mode: 'realtime', maxPlayers, public: roomPublic, conApuesta: roomApuesta, ante: roomApuesta ? anteVal : 100 });
 }
 
 function unirse () {
@@ -768,6 +807,7 @@ function showLobby (lobbyState, pid, code, host) {
   isHost = host;
   myRoomPublic = !!lobbyState?.public;
   myRoomApuesta = !!lobbyState?.conApuesta;
+  const myRoomAnte = Number(lobbyState?.ante) || 100;
   saveActiveLobbySession();
 
   document.getElementById('lobby-setup').style.display = 'none';
@@ -781,7 +821,12 @@ function showLobby (lobbyState, pid, code, host) {
   const betBadge = document.getElementById('room-bet-badge');
   if (codeBox)  codeBox.style.display = myRoomPublic ? 'none' : '';
   if (pubBadge) pubBadge.style.display = myRoomPublic ? 'inline-flex' : 'none';
-  if (betBadge) betBadge.style.display = myRoomApuesta ? 'inline-flex' : 'none';
+  if (betBadge) {
+    betBadge.style.display = myRoomApuesta ? 'inline-flex' : 'none';
+    betBadge.innerHTML = myRoomApuesta
+      ? `<i class="ph ph-coins"></i>Con apuesta · ${fmtChips(myRoomAnte)}/ronda`
+      : betBadge.innerHTML;
+  }
   if (hintEl)   hintEl.textContent = myRoomPublic
     ? 'Mesa pública · cualquiera puede unirse desde el lobby'
     : 'Comparte este código con tus amigos';
@@ -1049,6 +1094,7 @@ window.nextGuideStep       = nextGuideStep;
 window.resumeActiveGame    = resumeActiveGame;
 window.setRoomPublic       = setRoomPublic;
 window.setRoomApuesta      = setRoomApuesta;
+window.setRoomAnte         = setRoomAnte;
 window.openRoomsBrowser    = openRoomsBrowser;
 window.closeRoomsBrowser   = closeRoomsBrowser;
 window.refreshRoomsBrowser = refreshRoomsBrowser;

@@ -11,8 +11,12 @@ const PUNTOS = {
 };
 
 // ─── Fichas / apuestas ────────────────────────────────
-const ANTE = 100;   // lo que apuesta cada jugador por ronda
-const MITAD_ANTE = 50; // 50 al ganador de ronda, 50 a la banca
+const ANTE_DEFAULT = 100; // apuesta por ronda por defecto (múltiplo de 2)
+// Cada ronda el ante se reparte en dos mitades: una al ganador de ronda
+// y otra a la banca. Por eso la apuesta por ronda debe ser un múltiplo de 2.
+
+const ANTE_MIN = 2;
+const ANTE_MAX = 10000;
 
 const REQ = {
   1:{t:2,c:0}, 2:{t:1,c:1}, 3:{t:0,c:2},
@@ -421,7 +425,10 @@ function validarJugadasConstruidas(jugadas) {
 // ═══════════════════════════════════════════════════
 
 class GameEngine {
-    constructor(jugadores, { conApuesta = false } = {}) {
+    constructor(jugadores, { conApuesta = false, ante = ANTE_DEFAULT } = {}) {
+        this.conApuesta = Boolean(conApuesta);
+        this.ante = this._sanitizeAnte(ante);
+        this.mitadAnte = this.ante / 2;
         this.jugadores = jugadores.map(({ id, nombre, badge, skin, fichas, userId }) => ({
             id, nombre, badge: badge || null, skin: skin || 'clasico',
             userId: userId || null,
@@ -442,7 +449,6 @@ class GameEngine {
             fuePenalizado: false,
             seCastigo: false,
         }));
-        this.conApuesta = Boolean(conApuesta);
         this.pot = 0;      // pozo de la ronda actual
         this.banca = 0;    // acumulado entre rondas
         this.ronda = 1;
@@ -472,6 +478,14 @@ class GameEngine {
 
     get jActivo() { return this.jugadores[this.turno]; }
 
+    // Valida que el ante sea un entero par dentro del rango permitido.
+    // Si no cumple, cae al valor por defecto (nunca rompe la partida).
+    _sanitizeAnte(v) {
+        const n = Math.floor(Number(v));
+        if (Number.isFinite(n) && n >= ANTE_MIN && n <= ANTE_MAX && n % 2 === 0) return n;
+        return ANTE_DEFAULT;
+    }
+
     addLog(m) {
         this.log.push({ msg: m, ts: Date.now() });
         if (this.log.length > 20) this.log.shift();
@@ -484,7 +498,7 @@ class GameEngine {
         return this.jugadores.filter(j => !j.quebrado);
     }
 
-    // Cobra el ante de 100 a cada participante al empezar una ronda.
+    // Cobra el ante a cada participante al empezar una ronda.
     // Si alguien no puede pagar, queda marcado como quebrado y NO
     // participa en apuestas ni en la banca (puede seguir jugando cartas).
     _cobrarAnte() {
@@ -492,26 +506,26 @@ class GameEngine {
         const participantes = this._participantesApuesta();
         let algunQuebrado = false;
         participantes.forEach(j => {
-            if (j.fichas < ANTE) {
+            if (j.fichas < this.ante) {
                 j.quebrado = true;
                 algunQuebrado = true;
                 this.addLog(`💔 ${j.nombre} no tiene fichas para la apuesta — ya no participa en apuestas.`);
             } else {
-                j.fichas -= ANTE;
-                this.pot += ANTE;
+                j.fichas -= this.ante;
+                this.pot += this.ante;
             }
         });
         if (algunQuebrado) {
-            this.pot = this._participantesApuesta().length * ANTE;
+            this.pot = this._participantesApuesta().length * this.ante;
         }
         if (this.pot > 0) {
-            this.addLog(`💸 Apuesta de la ronda ${this.ronda}: ${this._participantesApuesta().length} × ${ANTE} fichas → pozo ${this.pot}.`);
+            this.addLog(`💸 Apuesta de la ronda ${this.ronda}: ${this._participantesApuesta().length} × ${this.ante} fichas → pozo ${this.pot}.`);
         }
         return null;
     }
 
     // Reparte el pozo al terminar la ronda.
-    // Con ganador: 50 × participantes al ganador, 50 × participantes a la banca.
+    // Con ganador: mitad del ante × participantes al ganador, la otra mitad a la banca.
     // Sin ganador: se devuelve el ante a cada participante.
     _repartirPozo(ganadorIdx) {
         if (!this.conApuesta) return;
@@ -521,7 +535,7 @@ class GameEngine {
         if (Number.isInteger(ganadorIdx) && ganadorIdx >= 0 && ganadorIdx < this.jugadores.length) {
             const ganador = this.jugadores[ganadorIdx];
             if (ganador && !ganador.quebrado) {
-                const paraGanador = participantes.length * MITAD_ANTE;
+                const paraGanador = participantes.length * this.mitadAnte;
                 const paraBanca = total - paraGanador;
                 ganador.fichas += paraGanador;
                 this.banca += paraBanca;
@@ -531,7 +545,7 @@ class GameEngine {
                 this.addLog(`🏦 Sin ganador válido — ${total} fichas del pozo van a la banca.`);
             }
         } else {
-            participantes.forEach(j => { j.fichas += ANTE; });
+            participantes.forEach(j => { j.fichas += this.ante; });
             this.addLog(`↩️ Ronda sin ganador — ante devuelto a los participantes.`);
         }
         this.pot = 0;
@@ -1141,9 +1155,9 @@ class GameEngine {
             turno: this.turno,
             estado: this.estado,
             conApuesta: this.conApuesta,
+            ante: this.conApuesta ? this.ante : 0,
             pot: this.pot,
             banca: this.banca,
-            ante: this.conApuesta ? ANTE : 0,
             fondo_top: this.fondo.length ? this.fondo[this.fondo.length - 1] : null,
             fondo_count: this.fondo.length,
             mazo_count: this.mazo.length,
@@ -1175,4 +1189,4 @@ class GameEngine {
     }
 }
 
-module.exports = { GameEngine, REQ, PUNTOS };
+module.exports = { GameEngine, REQ, PUNTOS, ANTE_DEFAULT, ANTE_MIN, ANTE_MAX };
