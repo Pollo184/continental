@@ -229,8 +229,6 @@ async function aplicarLogrosPartida(client, partidaId, userId, { posicion, ronda
 
   const prog = progresoNivel(xpTotal);
 
-  await client.query('UPDATE partidas SET xp_awarded = TRUE WHERE id = $1', [partidaId]);
-
   return {
     type: 'progreso',
     xpGanada,

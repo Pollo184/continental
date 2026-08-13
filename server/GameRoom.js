@@ -356,6 +356,10 @@ class GameRoom {
         }
       }
 
+      // Marcar la partida como registrada UNA vez, después de aplicar a todos
+      // los jugadores (no dentro del loop: xp_awarded es por partida).
+      await client.query('UPDATE partidas SET xp_awarded = TRUE WHERE id = $1', [partidaId]);
+
       await client.query('COMMIT');
 
       for (const j of jugadores) {
