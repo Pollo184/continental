@@ -1,5 +1,14 @@
 [
   {
+    "version": "v0.5.4.1",
+    "fecha": "13 ago 2026",
+    "titulo": "Badge y skin del músico",
+    "cambios": [
+      "Nuevo badge Músico 🎻 asignable por el administrador.",
+      "Skin exclusiva del músico con pentagrama (notas ♪) hecha en CSS, se equipa desde el perfil y se ve en tus cartas, avatar y en la mesa."
+    ]
+  },
+  {
     "version": "v0.5.4",
     "fecha": "13 ago 2026",
     "titulo": "Títulos de logro equipables",

@@ -192,6 +192,21 @@ body::before {
 .skin-amatista  { --skin-bg: linear-gradient(135deg, #35105e, #170728, #7e39c6, #170728); --skin-border: rgba(186,132,255,.52); --skin-inner: rgba(205,165,255,.2); --skin-glow: 0 0 14px rgba(146,82,255,.25); }
 .skin-cobalto   { --skin-bg: linear-gradient(135deg, #0a1e46, #071024, #1453c2, #071024); --skin-border: rgba(88,151,255,.5); --skin-inner: rgba(129,180,255,.2); --skin-glow: 0 0 14px rgba(36,104,232,.22); }
 .skin-marfil    { --skin-bg: linear-gradient(135deg, #8a7b63, #4a4134, #e6d8bc, #4a4134); --skin-border: rgba(240,225,194,.52); --skin-inner: rgba(255,244,223,.22); --skin-glow: 0 0 12px rgba(230,216,188,.24); }
+.skin-musico    { --skin-bg: repeating-linear-gradient(180deg, rgba(200,160,69,.34) 0 1px, rgba(0,0,0,0) 1px 6px, rgba(200,160,69,.34) 6px 7px, rgba(0,0,0,0) 7px 12px, rgba(200,160,69,.34) 12px 13px, rgba(0,0,0,0) 13px 18px, rgba(200,160,69,.34) 18px 19px, rgba(0,0,0,0) 19px 24px, rgba(200,160,69,.34) 24px 25px, rgba(0,0,0,0) 25px 40px), linear-gradient(135deg, #2a1406, #140a02 45%, #4a2815, #140a02); --skin-border: rgba(200,160,69,.55); --skin-inner: rgba(200,160,69,.4); --skin-glow: 0 0 12px rgba(200,160,69,.28); }
+.cback.skin-musico::after,
+.cback-xs.skin-musico::after {
+  content: '♪';
+  border: none;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: min(15px, calc(var(--ch, 70px) * .38));
+  line-height: 1;
+  color: rgba(242,222,160,.85);
+  text-shadow: 0 0 8px rgba(200,160,69,.6);
+}
 
 @keyframes rainbowBaseFlow {
   0% {

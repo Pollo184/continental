@@ -5,6 +5,7 @@ const { verifyAuthorized } = require('./jwt-utils');
 const { middleware: rateLimit } = require('./rate-limit');
 
 const BADGES = {
+  'musico':        { label: 'Músico',        emoji: '🎻' },
   'owner':         { label: 'Owner',         emoji: '👑' },
   'beta_tester':   { label: 'Beta Tester',   emoji: '🧪' },
   'early_adopter': { label: 'Early Adopter', emoji: '🎖️' },

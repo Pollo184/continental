@@ -218,6 +218,7 @@ router.post('/me/nombre', rateLimit({ max: 10, windowMs: 10 * 60 * 1000, message
 // ── POST /api/me/skin ────────────────────────────────────────────
 const SKINS_LIBRES     = ['clasico', 'rojo', 'obsidiana', 'esmeralda', 'plata', 'bronce', 'zafiro'];
 const SKINS_EXCLUSIVOS = {
+  'musico': ['musico'],
   'dorado': ['owner'],
   'neon':   ['owner', 'vip', 'beta_tester'],
   'imperial': ['owner'],

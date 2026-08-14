@@ -2657,6 +2657,7 @@ function hideNextRoundWait() {
 // ═══════════════════════════════════════════════════
 
 const BADGES = {
+    'musico':        { emoji: '🎻', label: 'Músico' },
     'owner':         { emoji: '👑', label: 'Owner' },
     'beta_tester':   { emoji: '🧪', label: 'Beta Tester' },
     'early_adopter': { emoji: '🎖️', label: 'Early Adopter' },
@@ -3027,6 +3028,7 @@ const SKIN_AVATAR_BG = {
     'plata':     'linear-gradient(135deg,#8b96a6,#4d5663)',
     'bronce':    'linear-gradient(135deg,#8a5630,#4a2815)',
     'zafiro':    'linear-gradient(135deg,#0b2458,#07122d)',
+    'musico':    'repeating-linear-gradient(180deg, rgba(200,160,69,.32) 0 1px, rgba(0,0,0,0) 1px 6px, rgba(200,160,69,.32) 6px 7px, rgba(0,0,0,0) 7px 12px, rgba(200,160,69,.32) 12px 13px, rgba(0,0,0,0) 13px 18px, rgba(200,160,69,.32) 18px 19px, rgba(0,0,0,0) 19px 24px, rgba(200,160,69,.32) 24px 25px, rgba(0,0,0,0) 25px 38px), linear-gradient(135deg,#2a1406,#140a02 45%,#4a2815,#140a02)',
     'dorado':    'linear-gradient(135deg,#c8a045,#7a5c00)',
     'neon':      'linear-gradient(135deg,#001a33,#003366)',
     'imperial':  'linear-gradient(135deg,#3f0018,#160008)',
@@ -3040,6 +3042,7 @@ const SKIN_AVATAR_BORDER = {
     'obsidiana': 'rgba(200,160,69,.4)',    'esmeralda':'rgba(46,204,113,.4)',
     'plata':     'rgba(225,235,245,.6)',   'bronce':  'rgba(206,139,85,.55)',
     'zafiro':    'rgba(93,152,255,.6)',    'dorado':  'rgba(200,160,69,.7)',
+    'musico':    'rgba(200,160,69,.6)',
     'neon':      'rgba(0,200,255,.6)',     'imperial':'rgba(255,133,183,.6)',
     'arcoiris':  'rgba(255,255,255,.72)',  'amatista':'rgba(186,132,255,.65)',
     'cobalto':   'rgba(88,151,255,.62)',   'marfil':  'rgba(240,225,194,.62)',

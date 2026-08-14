@@ -9,6 +9,7 @@ const SKINS = [
   { id: 'plata',      label: 'Plata',      bg: 'linear-gradient(135deg,#8b96a6,#4d5663,#d7dde6,#4d5663)', border: 'rgba(225,235,245,.6)', free: true },
   { id: 'bronce',     label: 'Bronce',     bg: 'linear-gradient(135deg,#8a5630,#4a2815,#b97a4a,#4a2815)', border: 'rgba(206,139,85,.55)', free: true },
   { id: 'zafiro',     label: 'Zafiro',     bg: 'linear-gradient(135deg,#0b2458,#07122d,#1d58b8,#07122d)', border: 'rgba(93,152,255,.6)', free: true },
+  { id: 'musico',     label: '🎻 Músico',  bg: 'repeating-linear-gradient(180deg, rgba(200,160,69,.32) 0 1px, rgba(0,0,0,0) 1px 6px, rgba(200,160,69,.32) 6px 7px, rgba(0,0,0,0) 7px 12px, rgba(200,160,69,.32) 12px 13px, rgba(0,0,0,0) 13px 18px, rgba(200,160,69,.32) 18px 19px, rgba(0,0,0,0) 19px 24px, rgba(200,160,69,.32) 24px 25px, rgba(0,0,0,0) 25px 38px), radial-gradient(ellipse at 50% 30%, rgba(255,255,255,.06), transparent 60%), linear-gradient(135deg,#2a1406,#140a02 45%,#4a2815,#140a02)', border: 'rgba(200,160,69,.6)', free: false, roles: ['musico'] },
   { id: 'dorado',     label: '👑 Dorado',   bg: 'linear-gradient(135deg,#7a5c00,#3d2e00,#c8a045,#3d2e00)', border: 'rgba(200,160,69,.7)', free: false, roles: ['owner'] },
   { id: 'neon',       label: '⚡ Neon',     bg: 'linear-gradient(135deg,#001a33,#003366)', border: 'rgba(0,200,255,.6)',    free: false, roles: ['owner','vip','beta_tester'] },
   { id: 'imperial',   label: '👑 Imperial', bg: 'linear-gradient(135deg,#3f0018,#160008,#8f0f3b,#160008)', border: 'rgba(255,133,183,.6)', free: false, roles: ['owner'] },
@@ -19,10 +20,10 @@ const SKINS = [
 ];
 
 const BADGE_EMOJI = {
-  'owner': '👑', 'beta_tester': '🧪', 'early_adopter': '🎖️', 'vip': '⭐',
+  'musico': '🎻', 'owner': '👑', 'beta_tester': '🧪', 'early_adopter': '🎖️', 'vip': '⭐',
 };
 const BADGE_LABELS = {
-  'owner': 'Owner', 'beta_tester': 'Beta Tester', 'early_adopter': 'Early Adopter', 'vip': 'VIP',
+  'musico': 'Músico', 'owner': 'Owner', 'beta_tester': 'Beta Tester', 'early_adopter': 'Early Adopter', 'vip': 'VIP',
 };
 
 // Títulos de logro: se ganan jugando y son equipables desde el perfil.
