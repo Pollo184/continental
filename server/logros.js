@@ -209,19 +209,26 @@ async function aplicarLogrosPartida(client, partidaId, userId, { posicion, ronda
       xpGanada += l.xp;
       fichasBonus += Number(l.fichas || 0);
       nuevosLogros.push({ clave: l.clave, nombre: l.nombre, icono: l.icono, xp: l.xp, fichas: Number(l.fichas || 0), titulo: l.titulo });
-      if (l.titulo && !nuevoTitulo) nuevoTitulo = l.titulo;
+      if (l.titulo) {
+        await client.query(
+          'INSERT INTO usuarios_titulos (user_id, titulo) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [userId, l.titulo]
+        );
+        if (!nuevoTitulo) nuevoTitulo = l.titulo;
+      }
     }
   }
 
-  const u = await client.query('SELECT xp, nivel, badge FROM usuarios WHERE id = $1', [userId]);
+  const u = await client.query('SELECT xp, nivel, titulo FROM usuarios WHERE id = $1', [userId]);
   const xpTotal = Number(u.rows[0].xp || 0) + xpGanada;
   const nivelAntes = u.rows[0].nivel;
   const nivelDespues = calcularNivel(xpTotal);
-  const badgeFinal = nuevoTitulo || u.rows[0].badge;
+  // Solo se auto-equipa el título si el jugador no tenía uno puesto.
+  const tituloFinal = u.rows[0].titulo || nuevoTitulo;
 
   await client.query(
-    'UPDATE usuarios SET xp = $1, nivel = $2, badge = $3 WHERE id = $4',
-    [xpTotal, nivelDespues, badgeFinal, userId]
+    'UPDATE usuarios SET xp = $1, nivel = $2, titulo = $3 WHERE id = $4',
+    [xpTotal, nivelDespues, tituloFinal, userId]
   );
   if (fichasBonus > 0) {
     await client.query('UPDATE usuarios SET chips = chips + $1 WHERE id = $2', [fichasBonus, userId]);
@@ -242,7 +249,7 @@ async function aplicarLogrosPartida(client, partidaId, userId, { posicion, ronda
     nuevosLogros,
     fichasBonus,
     nuevoTitulo,
-    badge: badgeFinal,
+    titulo: tituloFinal,
   };
 }
 

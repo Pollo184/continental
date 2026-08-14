@@ -45,7 +45,7 @@ router.post('/register', rateLimit({ max: 5, windowMs: 10 * 60 * 1000, message: 
 
     // Insertar usuario
     const result = await pool.query(
-      'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3) RETURNING id, nombre, badge, rol, skin, chips',
+      'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3) RETURNING id, nombre, badge, titulo, rol, skin, chips',
       [safeNombre, safeEmail, hash]
     );
     const usuario = result.rows[0];
@@ -53,7 +53,7 @@ router.post('/register', rateLimit({ max: 5, windowMs: 10 * 60 * 1000, message: 
     // Generar token
     const token = signUserToken(usuario);
 
-    res.json({ token, usuario: { id: usuario.id, nombre: usuario.nombre, badge: usuario.badge, rol: usuario.rol, skin: usuario.skin || 'clasico', chips: Number(usuario.chips ?? CHIPS_INICIALES) } });
+    res.json({ token, usuario: { id: usuario.id, nombre: usuario.nombre, badge: usuario.badge, titulo: usuario.titulo || null, rol: usuario.rol, skin: usuario.skin || 'clasico', chips: Number(usuario.chips ?? CHIPS_INICIALES) } });
 
   } catch (err) {
     console.error('[register]', err.message);
@@ -78,7 +78,7 @@ router.post('/login', rateLimit({ max: 20, windowMs: 15 * 60 * 1000, message: 'D
 
     // Buscar usuario
     const result = await pool.query(
-      'SELECT id, nombre, password, badge, rol, skin, chips, token_version FROM usuarios WHERE email = $1',
+      'SELECT id, nombre, password, badge, titulo, rol, skin, chips, token_version FROM usuarios WHERE email = $1',
       [safeEmail]
     );
     if (result.rows.length === 0) {
@@ -98,7 +98,7 @@ router.post('/login', rateLimit({ max: 20, windowMs: 15 * 60 * 1000, message: 'D
     // Generar token
     const token = signUserToken(usuario);
 
-    res.json({ token, usuario: { id: usuario.id, nombre: usuario.nombre, badge: usuario.badge, rol: usuario.rol, skin: usuario.skin || 'clasico', chips: Number(usuario.chips ?? CHIPS_INICIALES) } });
+    res.json({ token, usuario: { id: usuario.id, nombre: usuario.nombre, badge: usuario.badge, titulo: usuario.titulo || null, rol: usuario.rol, skin: usuario.skin || 'clasico', chips: Number(usuario.chips ?? CHIPS_INICIALES) } });
 
   } catch (err) {
     console.error('[login]', err.message);
@@ -112,7 +112,7 @@ router.get('/me', async (req, res) => {
     const payload = await verifyAuthorized(req.headers.authorization);
 
     const result = await pool.query(
-      'SELECT id, nombre, badge, rol, skin, chips, xp, nivel, created_at FROM usuarios WHERE id = $1',
+      'SELECT id, nombre, badge, titulo, rol, skin, chips, xp, nivel, created_at FROM usuarios WHERE id = $1',
       [payload.id]
     );
     if (result.rows.length === 0)
@@ -201,7 +201,7 @@ router.post('/me/nombre', rateLimit({ max: 10, windowMs: 10 * 60 * 1000, message
       `UPDATE usuarios
           SET nombre = $1
         WHERE id = $2
-        RETURNING id, nombre, badge, rol, skin`,
+        RETURNING id, nombre, badge, titulo, rol, skin`,
       [safeNombre, payload.id]
     );
     const usuario = result.rows[0];
@@ -258,6 +258,42 @@ router.post('/me/skin', rateLimit({ max: 20, windowMs: 10 * 60 * 1000, message: 
   }
 });
 
+// ── POST /api/me/titulo ───────────────────────────────────────────
+// Equipa/quita un título de logro desbloqueado. Solo permite títulos
+// que el jugador haya ganado (los badges especiales son solo del admin).
+router.post('/me/titulo', rateLimit({ max: 20, windowMs: 10 * 60 * 1000, message: 'Demasiados cambios de título. Espera unos minutos.' }), async (req, res) => {
+  try {
+    const payload = await verifyAuthorized(req.headers.authorization);
+    const { titulo } = req.body;
+    const safeTitulo = titulo ? String(titulo).trim() : '';
+
+    if (safeTitulo) {
+      const r = await pool.query(
+        'SELECT 1 FROM usuarios_titulos WHERE user_id = $1 AND titulo = $2',
+        [payload.id, safeTitulo]
+      );
+      if (r.rows.length === 0)
+        return res.status(403).json({ error: 'No tienes ese título desbloqueado.' });
+    }
+
+    const result = await pool.query(
+      `UPDATE usuarios
+          SET titulo = $1
+        WHERE id = $2
+        RETURNING id, nombre, badge, titulo, rol, skin`,
+      [safeTitulo || null, payload.id]
+    );
+    const usuario = result.rows[0];
+    if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado.' });
+
+    res.json({ ok: true, usuario });
+
+  } catch (err) {
+    console.error('[titulo]', err.message);
+    res.status(err.status || 500).json({ error: err.message || 'Error interno.' });
+  }
+});
+
 // ── POST /api/refresh ────────────────────────────────────────────
 // Renueva el token (aunque esté expirado) si la sesión no fue revocada.
 router.post('/refresh', rateLimit({ max: 20, windowMs: 15 * 60 * 1000, message: 'Demasiadas peticiones. Espera unos minutos.' }), async (req, res) => {
@@ -265,14 +301,14 @@ router.post('/refresh', rateLimit({ max: 20, windowMs: 15 * 60 * 1000, message: 
     const payload = await verifyAuthorized(req.headers.authorization, { ignoreExpiration: true });
 
     const result = await pool.query(
-      'SELECT id, nombre, badge, rol, skin, chips, token_version FROM usuarios WHERE id = $1',
+      'SELECT id, nombre, badge, titulo, rol, skin, chips, token_version FROM usuarios WHERE id = $1',
       [payload.id]
     );
     const usuario = result.rows[0];
     if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado.' });
 
     const token = signUserToken(usuario);
-    res.json({ token, usuario: { id: usuario.id, nombre: usuario.nombre, badge: usuario.badge, rol: usuario.rol, skin: usuario.skin || 'clasico', chips: Number(usuario.chips ?? CHIPS_INICIALES) } });
+    res.json({ token, usuario: { id: usuario.id, nombre: usuario.nombre, badge: usuario.badge, titulo: usuario.titulo || null, rol: usuario.rol, skin: usuario.skin || 'clasico', chips: Number(usuario.chips ?? CHIPS_INICIALES) } });
   } catch (err) {
     res.status(err.status || 401).json({ error: err.message || 'Token inválido o expirado.' });
   }
@@ -359,10 +395,15 @@ router.get('/logros', async (req, res) => {
   try {
     const payload = await verifyAuthorized(req.headers.authorization);
 
-    const u = await pool.query('SELECT xp, nivel FROM usuarios WHERE id = $1', [payload.id]);
+    const u = await pool.query('SELECT xp, nivel, titulo FROM usuarios WHERE id = $1', [payload.id]);
     if (!u.rows[0]) return res.status(404).json({ error: 'Usuario no encontrado.' });
 
     const nivelData = progresoNivel(u.rows[0].xp);
+
+    const titulosDesbloqueados = await pool.query(
+      'SELECT titulo FROM usuarios_titulos WHERE user_id = $1 ORDER BY titulo',
+      [payload.id]
+    );
 
     const logros = await pool.query(
       'SELECT id, clave, nombre, descripcion, tipo, meta, icono, xp, fichas, titulo, orden FROM logros ORDER BY orden'
@@ -395,6 +436,8 @@ router.get('/logros', async (req, res) => {
     res.json({
       nivel: nivelData.nivel,
       titulo: tituloNivel(nivelData.nivel),
+      tituloEquipado: u.rows[0].titulo || null,
+      titulos: titulosDesbloqueados.rows.map(r => r.titulo),
       xpTotal: nivelData.xpTotal,
       xpEnNivel: nivelData.xpEnNivel,
       xpParaSiguiente: nivelData.xpParaSiguiente,

@@ -965,7 +965,7 @@
                 <div class="hub-right">
                     <button class="btn-news" onclick="openChangelog()" id="btn-news"><i class="ph ph-newspaper"></i>Novedades<span id="news-badge" style="display:none"></span></button>
                     <button class="btn-explore" onclick="openRoomsBrowser()"><i class="ph ph-fire"></i>Mesas públicas</button>
-                    <span class="hub-pill">beta v0.5.3.3</span>
+                    <span class="hub-pill">beta v0.5.4</span>
                     <div class="deco-cards" id="deco-cards" aria-hidden="true">
                         <div class="deco-card" style="--i:0"><b>A</b><i class="ph ph-spade-fill"></i></div>
                         <div class="deco-card" style="--i:1"><b>K</b><i class="ph ph-heart-fill"></i></div>
@@ -1155,7 +1155,7 @@
 
             <footer class="hub-foot">
                 <i class="ph ph-spade-fill"></i>
-                <span>Continental · beta v0.5.3.3</span>
+                <span>Continental · beta v0.5.4</span>
             </footer>
         </main>
     </div>
@@ -1340,7 +1340,10 @@
             const nombre = user.nombre || '';
             if (displayEl) displayEl.textContent = nombre;
             if (badgeEl) {
-                badgeEl.textContent = BADGE_LABELS[user.badge] || '';
+                const partes = [];
+                if (user.badge && BADGE_LABELS[user.badge]) partes.push(BADGE_LABELS[user.badge]);
+                if (user.titulo && TITULO_LABELS[user.titulo]) partes.push(TITULO_LABELS[user.titulo]);
+                badgeEl.textContent = partes.join(' · ');
                 badgeEl.classList.toggle('badge-diamante', badgeToneClass(user.badge) === 'badge-diamante');
             }
             if (adminBtn) adminBtn.style.display = user.rol === 'owner' ? 'flex' : 'none';

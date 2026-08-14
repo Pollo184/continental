@@ -429,8 +429,9 @@ class GameEngine {
         this.conApuesta = Boolean(conApuesta);
         this.ante = this._sanitizeAnte(ante);
         this.mitadAnte = this.ante / 2;
-        this.jugadores = jugadores.map(({ id, nombre, badge, skin, fichas, userId }) => ({
+        this.jugadores = jugadores.map(({ id, nombre, badge, skin, fichas, userId, titulo }) => ({
             id, nombre, badge: badge || null, skin: skin || 'clasico',
+            titulo: titulo || null,
             userId: userId || null,
             fichas: Math.max(0, Number.isInteger(fichas) ? fichas : 10000),
             fichasInicio: Math.max(0, Number.isInteger(fichas) ? fichas : 10000),
@@ -1178,6 +1179,7 @@ class GameEngine {
                 nombre: j.nombre,
                 skin: j.skin || 'clasico',
                 badge: j.badge || null,
+                titulo: j.titulo || null,
                 num_cartas: j.mano.length,
                 bajado: j.bajado,
                 pts_r: j.pts_r,

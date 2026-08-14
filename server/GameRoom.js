@@ -30,7 +30,7 @@ class GameRoom {
     this._ackTimer  = null;
     this._finJuegoAt = null;
 
-    this.addPlayer(host.id, host.nombre, host.ws, host.badge || null, host.skin || 'clasico', host.rol || 'jugador', host.userId || null, host.chips);
+    this.addPlayer(host.id, host.nombre, host.ws, host.badge || null, host.skin || 'clasico', host.rol || 'jugador', host.userId || null, host.chips, host.titulo || null);
   }
 
   _sanitizeAnte(v) {
@@ -221,7 +221,7 @@ class GameRoom {
            (Date.now() - this._finJuegoAt > ROOM_FIN_TIMEOUT_MS);
   }
 
-  addPlayer(id, nombre, ws, badge = null, skin = 'clasico', rol = 'jugador', userId = null, chips = null) {
+  addPlayer(id, nombre, ws, badge = null, skin = 'clasico', rol = 'jugador', userId = null, chips = null, titulo = null) {
     if (this.players.find(p => p.id === id)) {
       const p = this.players.find(p => p.id === id);
       p.ws = ws;
@@ -231,12 +231,14 @@ class GameRoom {
       p.rol = rol;
       p.userId = userId || p.userId;
       p.chips = Number.isInteger(chips) ? chips : p.chips;
+      if (titulo) p.titulo = titulo;
       if (this.engine) {
         const enginePlayer = this.engine._findPlayer(id);
         if (enginePlayer) {
           enginePlayer.conectado = true;
           enginePlayer.badge = badge;
           enginePlayer.skin = skin;
+          if (titulo) enginePlayer.titulo = titulo;
         }
       }
       this.broadcast({ type: 'player_reconnected', nombre, lobbyState: this.lobbyState() }, id);
@@ -252,25 +254,27 @@ class GameRoom {
     }
     if (this.players.length >= this.maxPlayers) return null;
     if (this.status !== 'lobby') return null;
-    const player = { id, nombre, badge, skin, rol, userId, chips: Number.isInteger(chips) ? chips : null, ws, conectado: true, seatToken: randomUUID() };
+    const player = { id, nombre, badge, skin, rol, userId, titulo: titulo || null, chips: Number.isInteger(chips) ? chips : null, ws, conectado: true, seatToken: randomUUID() };
     this.players.push(player);
     this.broadcast({ type: 'player_joined', nombre, count: this.players.length, lobbyState: this.lobbyState() }, id);
     return player;
   }
 
-  refreshPlayerProfile(nombre, { badge = null, skin = 'clasico' } = {}) {
+  refreshPlayerProfile(nombre, { badge = null, skin = 'clasico', titulo = null } = {}) {
     let changed = false;
 
     this.players.forEach(player => {
       if (player.nombre !== nombre) return;
       player.badge = badge;
       player.skin = skin;
+      player.titulo = titulo;
       changed = true;
     });
 
     if (this.host?.nombre === nombre) {
       this.host.badge = badge;
       this.host.skin = skin;
+      this.host.titulo = titulo;
     }
 
     if (this.engine) {
@@ -278,6 +282,7 @@ class GameRoom {
         if (player.nombre !== nombre) return;
         player.badge = badge;
         player.skin = skin;
+        player.titulo = titulo;
         changed = true;
       });
     }
@@ -285,7 +290,7 @@ class GameRoom {
     if (!changed) return false;
 
     if (this.engine) {
-      this._broadcastState('profile_updated', { nombre, badge, skin });
+      this._broadcastState('profile_updated', { nombre, badge, skin, titulo });
     } else {
       this.broadcast({ type: 'lobby_state_updated', lobbyState: this.lobbyState() });
     }
@@ -654,7 +659,7 @@ class GameRoom {
       public: this.public,
       conApuesta: this.conApuesta,
       ante: this.conApuesta ? this.ante : 0,
-      players: this.players.map(p => ({ id: p.id, nombre: p.nombre, badge: p.badge || null, skin: p.skin || 'clasico', conectado: p.conectado })),
+      players: this.players.map(p => ({ id: p.id, nombre: p.nombre, badge: p.badge || null, titulo: p.titulo || null, skin: p.skin || 'clasico', conectado: p.conectado })),
       maxPlayers: this.maxPlayers,
       tableColor: this.tableColor || 'green',
     };

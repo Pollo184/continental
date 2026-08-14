@@ -1,5 +1,16 @@
 [
   {
+    "version": "v0.5.4",
+    "fecha": "13 ago 2026",
+    "titulo": "Títulos de logro equipables",
+    "cambios": [
+      "Los logros ahora otorgan títulos equipables (Veterano, Leyenda, Dios del Continental, Inmortal, Imparable, Invencible, Magnate, Perfecto, Ahorrativo).",
+      "Se equipan o se quitan desde tu perfil, en la sección Niveles y logros, o directamente con el botón Poner ahora al desbloquearlos.",
+      "El título elegido aparece junto a tu nombre en la sala, la mesa, el ranking y el perfil.",
+      "Los badges de privilegio (owner, beta tester, early adopter y VIP) quedan separados de los títulos y siguen siendo de uso exclusivo del administrador."
+    ]
+  },
+  {
     "version": "v0.5.3.3",
     "fecha": "13 ago 2026",
     "titulo": "Bajada y acomodo más seguros",

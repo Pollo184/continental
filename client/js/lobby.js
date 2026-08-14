@@ -846,15 +846,6 @@ function updateLobbyState (lobbyState) {
     'beta_tester':   { emoji: '🧪', label: 'Beta Tester' },
     'early_adopter': { emoji: '🎖️', label: 'Early Adopter' },
     'vip':           { emoji: '⭐', label: 'VIP' },
-    'veterano':      { emoji: '🎖️', label: 'Veterano' },
-    'leyenda':       { emoji: '👑', label: 'Leyenda' },
-    'imparable':     { emoji: '🔥', label: 'Imparable' },
-    'invencible':    { emoji: '🏆', label: 'Invencible' },
-    'magnate':       { emoji: '💰', label: 'Magnate' },
-    'perfecto':      { emoji: '💎', label: 'Perfecto' },
-    'dios_continental': { emoji: '🏛️', label: 'Dios del Continental' },
-    'inmortal':      { emoji: '♾️', label: 'Inmortal' },
-    'ahorrativo':    { emoji: '🪙', label: 'Ahorrativo' },
   };
   const SKIN_AVATAR_BG = {
     'clasico':   'linear-gradient(135deg,#1a3a80,#0d2050)',
@@ -887,7 +878,7 @@ function updateLobbyState (lobbyState) {
     return `
     <div class="player-item">
       <div class="player-avatar" title="${badge ? badge.label : ''}" style="background:${SKIN_AVATAR_BG[p.skin] || SKIN_AVATAR_BG.clasico};border-color:${SKIN_AVATAR_BORDER[p.skin] || 'rgba(255,255,255,.25)'}">${av}</div>
-      <span class="player-name">${escHtml(p.nombre)}</span>
+      <span class="player-name">${escHtml(p.nombre)}</span>${p.titulo && (window.TITULOS || {})[p.titulo] ? ` <span class="titulo-chip">${window.TITULOS[p.titulo].label}</span>` : ''}
       ${i === 0 ? '<span class="player-badge">HOST</span>' : ''}
       <div class="player-dot ${p.conectado ? '' : 'away'}" title="${p.conectado ? 'Conectado' : 'Desconectado'}"></div>
     </div>`;

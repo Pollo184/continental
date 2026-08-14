@@ -20,16 +20,32 @@ const SKINS = [
 
 const BADGE_EMOJI = {
   'owner': '👑', 'beta_tester': '🧪', 'early_adopter': '🎖️', 'vip': '⭐',
-  'veterano': '🎖️', 'leyenda': '👑', 'imparable': '🔥', 'invencible': '🏆',
-  'magnate': '💰', 'perfecto': '💎', 'dios_continental': '🏛️', 'inmortal': '♾️',
-  'ahorrativo': '🪙',
 };
 const BADGE_LABELS = {
   'owner': 'Owner', 'beta_tester': 'Beta Tester', 'early_adopter': 'Early Adopter', 'vip': 'VIP',
-  'veterano': 'Veterano', 'leyenda': 'Leyenda', 'imparable': 'Imparable',
-  'invencible': 'Invencible', 'magnate': 'Magnate', 'perfecto': 'Perfecto',
-  'dios_continental': 'Dios del Continental', 'inmortal': 'Inmortal', 'ahorrativo': 'Ahorrativo',
 };
+
+// Títulos de logro: se ganan jugando y son equipables desde el perfil.
+const TITULOS = {
+  'veterano':          { label: 'Veterano',          emoji: '🎖️' },
+  'leyenda':           { label: 'Leyenda',           emoji: '👑' },
+  'dios_continental':  { label: 'Dios del Continental', emoji: '🏛️' },
+  'inmortal':          { label: 'Inmortal',          emoji: '♾️' },
+  'imparable':         { label: 'Imparable',         emoji: '🔥' },
+  'invencible':        { label: 'Invencible',        emoji: '🏆' },
+  'magnate':           { label: 'Magnate',           emoji: '💰' },
+  'perfecto':          { label: 'Perfecto',          emoji: '💎' },
+  'ahorrativo':        { label: 'Ahorrativo',        emoji: '🪙' },
+};
+const TITULO_LABELS = Object.fromEntries(Object.entries(TITULOS).map(([k, v]) => [k, v.label]));
+const TITULO_EMOJI  = Object.fromEntries(Object.entries(TITULOS).map(([k, v]) => [k, v.emoji]));
+
+// HTML del título equipado (texto dorado bajo el nombre).
+function tituloHtml (titulo) {
+  if (!titulo || !TITULOS[titulo]) return '';
+  const t = TITULOS[titulo];
+  return ` <span class="titulo-chip${t.tone ? ' titulo-' + t.tone : ''}" title="Título: ${t.label}">${t.label}</span>`;
+}
 
 // Clase extra para estilizar el título de badges especiales (p. ej. "Perfecto" en diamante).
 function badgeToneClass(badge) {

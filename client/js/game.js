@@ -1360,7 +1360,7 @@ function setupSocketEvents() {
     WS.on('progreso', (p) => {
         if (!p) return;
         const stored = JSON.parse(localStorage.getItem('usuario') || '{}');
-        const next = { ...stored, xp: p.xpTotal, nivel: p.nivel, badge: p.badge || stored.badge };
+        const next = { ...stored, xp: p.xpTotal, nivel: p.nivel, badge: p.badge || stored.badge, titulo: p.titulo || stored.titulo };
         localStorage.setItem('usuario', JSON.stringify(next));
         window.AUTH = window.AUTH
             ? { ...window.AUTH, usuario: { ...(window.AUTH.usuario || {}), ...next } }
@@ -1384,11 +1384,12 @@ function setupSocketEvents() {
             enqueueNotif('logro', {
                 icon: l.icono ? `<i class="ph ph-${l.icono}"></i>` : '🏅',
                 title: l.nombre || 'Logro desbloqueado',
-                desc: l.titulo ? `Título «${escapeHtml(l.titulo)}» desbloqueado` : 'Nuevo logro conseguido',
+                desc: l.titulo ? `Título «${escapeHtml(TITULOS[l.titulo]?.label || l.titulo)}» desbloqueado` : 'Nuevo logro conseguido',
                 xp: [
                     l.xp ? `+${l.xp} XP` : '',
                     l.fichas ? `+${Number(l.fichas).toLocaleString('es-MX')} fichas` : '',
                 ].filter(Boolean).join(' · '),
+                action: l.titulo ? { label: 'Poner ahora', fn: () => equipTitulo(l.titulo) } : undefined,
             });
         });
         if (p.fichasBonus > 0 && !(p.nuevosLogros || []).length) {
@@ -1402,8 +1403,38 @@ function setupSocketEvents() {
     });
 }
 
+// Equipa un título de logro desbloqueado (o lo quita con titulo=null).
+async function equipTitulo(titulo) {
+    try {
+        const res = await fetch('/api/me/titulo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (localStorage.getItem('token') || '') },
+            body: JSON.stringify({ titulo: titulo || null }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            toast(data.error || 'No se pudo guardar el título.', 'err');
+            return;
+        }
+        const stored = JSON.parse(localStorage.getItem('usuario') || '{}');
+        const next = { ...stored, titulo: data.usuario?.titulo || null };
+        localStorage.setItem('usuario', JSON.stringify(next));
+        if (window.AUTH?.usuario) window.AUTH.usuario = { ...window.AUTH.usuario, ...next };
+        const t = next.titulo;
+        toast(t ? `Título puesto: ${TITULOS[t]?.label || t}` : 'Título quitado.');
+        const me = G.jugadores[myIdx];
+        if (me) {
+            me.titulo = next.titulo;
+            renderPlayerInfo(me);
+            renderScoreboard();
+        }
+    } catch {
+        toast('Error de conexión.', 'err');
+    }
+}
+
 // ── Cola de notificaciones (logros / XP / nivel) ──────────────────
-function enqueueNotif(kind, { icon, title, desc, xp } = {}) {
+function enqueueNotif(kind, { icon, title, desc, xp, action } = {}) {
     const stack = document.getElementById('notif-stack');
     if (!stack) return;
     const card = document.createElement('div');
@@ -1413,6 +1444,7 @@ function enqueueNotif(kind, { icon, title, desc, xp } = {}) {
         <div class="notif-body">
             <div class="notif-title">${title || ''}</div>
             ${desc ? `<div class="notif-desc">${desc}</div>` : ''}
+            ${action ? `<button class="notif-action" type="button">${escapeHtml(action.label || 'Poner')}</button>` : ''}
         </div>
         ${xp ? `<div class="notif-xp">${xp}</div>` : ''}
     `;
@@ -1424,7 +1456,17 @@ function enqueueNotif(kind, { icon, title, desc, xp } = {}) {
         setTimeout(() => card.remove(), 320);
     };
     const t = setTimeout(dismiss, 4000);
-    card.addEventListener('click', () => { clearTimeout(t); dismiss(); });
+    const close = () => { clearTimeout(t); dismiss(); };
+    card.addEventListener('click', (e) => {
+        if (e.target.closest('.notif-action')) {
+            clearTimeout(t);
+            const fn = action && action.fn;
+            if (fn) fn();
+            dismiss();
+            return;
+        }
+        close();
+    });
     card.addEventListener('animationend', (e) => { if (e.animationName === 'notifIn') card.style.animation = ''; });
 }
 
@@ -2619,15 +2661,17 @@ const BADGES = {
     'beta_tester':   { emoji: '🧪', label: 'Beta Tester' },
     'early_adopter': { emoji: '🎖️', label: 'Early Adopter' },
     'vip':           { emoji: '⭐', label: 'VIP' },
-    'veterano':      { emoji: '🎖️', label: 'Veterano' },
-    'leyenda':       { emoji: '👑', label: 'Leyenda' },
-    'imparable':     { emoji: '🔥', label: 'Imparable' },
-    'invencible':    { emoji: '🏆', label: 'Invencible' },
-    'magnate':       { emoji: '💰', label: 'Magnate' },
-    'perfecto':      { emoji: '💎', label: 'Perfecto' },
-    'dios_continental': { emoji: '🏛️', label: 'Dios del Continental' },
-    'inmortal':      { emoji: '♾️', label: 'Inmortal' },
-    'ahorrativo':    { emoji: '🪙', label: 'Ahorrativo' },
+};
+const TITULOS = {
+    'veterano':          { label: 'Veterano' },
+    'leyenda':           { label: 'Leyenda' },
+    'dios_continental':  { label: 'Dios del Continental' },
+    'inmortal':          { label: 'Inmortal' },
+    'imparable':         { label: 'Imparable' },
+    'invencible':        { label: 'Invencible' },
+    'magnate':           { label: 'Magnate' },
+    'perfecto':          { label: 'Perfecto' },
+    'ahorrativo':        { label: 'Ahorrativo' },
 };
 function skinClass(skin) {
     if (!skin || skin === 'clasico') return '';
@@ -2637,6 +2681,11 @@ function skinClass(skin) {
 function badgeHtml(badge) {
     if (!badge || !BADGES[badge]) return '';
     return ` <span title="${BADGES[badge].label}" style="cursor:default;font-size:.85rem">${BADGES[badge].emoji}</span>`;
+}
+
+function tituloHtml(titulo) {
+    if (!titulo || !TITULOS[titulo]) return '';
+    return ` <span class="titulo-chip" title="Título: ${TITULOS[titulo].label}">${TITULOS[titulo].label}</span>`;
 }
 
 function applyMySkin() {
@@ -2790,7 +2839,7 @@ function closeOwnerConsole() {
 function renderScoreboard() {
     document.getElementById('scoreboard').innerHTML = G.jugadores.map((j, i) => `
         <div class="sitem ${i === myIdx ? 'me' : ''}">
-            <div class="sname">${badgeHtml(j.badge)}${j.nombre}</div>
+            <div class="sname">${badgeHtml(j.badge)}${j.nombre}${tituloHtml(j.titulo)}</div>
             <div class="spts">${j.pts_t}</div>
         </div>
     `).join('');
@@ -2919,7 +2968,7 @@ function renderOpponents() {
         if (i === myIdx) return;
         const pos = layout.seatOf(i);
         const tiny = layout.feltW && layout.feltW * pos.seatW / 100 < 95;
-        const sig = `${j.nombre}|${j.badge}|${j.skin}|${j.pts_t}|${j.fichas}|${j.quebrado ? 1 : 0}|${j.conectado ? 1 : 0}|${j.bajado ? 1 : 0}|${(j.mano || []).length}|${(j.jugadas || []).length}|${i === G.turno ? 1 : 0}|${pos.zone}|${pos.seat ? pos.seat[0] + '/' + pos.seat[1] : ''}|${pos.seatW}|${tiny ? 1 : 0}`;
+        const sig = `${j.nombre}|${j.badge}|${j.titulo}|${j.skin}|${j.pts_t}|${j.fichas}|${j.quebrado ? 1 : 0}|${j.conectado ? 1 : 0}|${j.bajado ? 1 : 0}|${(j.mano || []).length}|${(j.jugadas || []).length}|${i === G.turno ? 1 : 0}|${pos.zone}|${pos.seat ? pos.seat[0] + '/' + pos.seat[1] : ''}|${pos.seatW}|${tiny ? 1 : 0}`;
         newSigs[i] = sig;
 
         let el = opEl.querySelector(`.opp[data-idx="${i}"]`);
@@ -2942,7 +2991,7 @@ function renderOpponents() {
             ${i === G.turno ? '<div class="opp-turn-arrow">▼</div>' : ''}
             <div class="opp-top">
                 <span class="opp-avatar" style="background:${avBg};border-color:${avBd}">${avatarChar}</span>
-                <span class="opp-name">${escapeHtml(j.nombre)}${!j.conectado ? ' 📴' : ''}</span>
+                <span class="opp-name">${escapeHtml(j.nombre)}${tituloHtml(j.titulo)}${!j.conectado ? ' 📴' : ''}</span>
             </div>
             <div class="opp-backs">${(j.mano || []).map(() => `<div class="cback-xs ${skinClass(j.skin)}"></div>`).join('')}</div>
             <div class="opp-meta">
@@ -3233,7 +3282,7 @@ function renderFondo(me) {
 }
 
 function renderPlayerInfo(me) {
-    document.getElementById('my-name').innerHTML = (me?.badge ? badgeHtml(me.badge) : '') + (me?.nombre || '—');
+    document.getElementById('my-name').innerHTML = (me?.badge ? badgeHtml(me.badge) : '') + (me?.nombre || '—') + tituloHtml(me?.titulo);
     document.getElementById('hand-count').textContent = `${me?.mano?.length || 0} cartas`;
     const chipsEl = document.getElementById('my-chips');
     if (chipsEl) {

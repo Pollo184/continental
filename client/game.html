@@ -1521,6 +1521,13 @@ select:focus-visible {
 .notif-body { flex: 1; min-width: 0; }
 .notif-title { font-size: .8rem; font-weight: 700; color: var(--gold-hi); }
 .notif-desc { font-size: .72rem; color: var(--text-dim); line-height: 1.4; margin-top: 2px; }
+.notif-action {
+  margin-top: 7px; border: none; cursor: pointer;
+  background: rgba(200,160,69,.14); color: var(--gold-hi);
+  border: 1px solid rgba(200,160,69,.45); border-radius: 8px;
+  font-size: .7rem; font-weight: 700; padding: 3px 10px;
+}
+.notif-action:hover { background: rgba(200,160,69,.26); }
 .notif-xp { font-size: .7rem; font-weight: 700; color: #ffe08a; white-space: nowrap; }
 @keyframes notifIn {
   from { opacity: 0; transform: translateX(64px) scale(.92); }
@@ -2755,7 +2762,7 @@ select:focus-visible {
     </div>
     <div id="owner-console-list" class="owner-console-list"></div>
   </div>
-  <div style="position:fixed;bottom:10px;left:12px;font-size:0.65rem;color:rgba(200,160,69,0.45);pointer-events:none;z-index:9999;letter-spacing:0.04em;">beta v0.5.3.3</div>
+  <div style="position:fixed;bottom:10px;left:12px;font-size:0.65rem;color:rgba(200,160,69,0.45);pointer-events:none;z-index:9999;letter-spacing:0.04em;">beta v0.5.4</div>
 <script>
 (function() {
   const MUSIC_URL = 'https://files.catbox.moe/bs0qiq.mp3';

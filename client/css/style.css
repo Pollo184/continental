@@ -573,6 +573,30 @@ body::before {
   color: #fff;
 }
 
+/* Título de logro equipado (chip de texto junto al nombre) */
+.titulo-chip {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 6px;
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--gold-hi, #e8c56b);
+  background: rgba(200, 160, 69, .12);
+  border: 1px solid rgba(200, 160, 69, .35);
+  border-radius: 999px;
+  vertical-align: middle;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sname .titulo-chip {
+  font-size: .5rem;
+  max-width: 90px;
+}
+
 /* ============================================
    MODAL
    ============================================ */

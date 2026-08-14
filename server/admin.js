@@ -9,15 +9,6 @@ const BADGES = {
   'beta_tester':   { label: 'Beta Tester',   emoji: '🧪' },
   'early_adopter': { label: 'Early Adopter', emoji: '🎖️' },
   'vip':           { label: 'VIP',           emoji: '⭐' },
-  'veterano':      { label: 'Veterano',      emoji: '🎖️' },
-  'leyenda':       { label: 'Leyenda',       emoji: '👑' },
-  'imparable':     { label: 'Imparable',     emoji: '🔥' },
-  'invencible':    { label: 'Invencible',    emoji: '🏆' },
-  'magnate':       { label: 'Magnate',       emoji: '💰' },
-  'perfecto':      { label: 'Perfecto',      emoji: '💎' },
-  'dios_continental': { label: 'Dios del Continental', emoji: '🏛️' },
-  'inmortal':      { label: 'Inmortal',      emoji: '♾️' },
-  'ahorrativo':    { label: 'Ahorrativo',    emoji: '🪙' },
 };
 
 // Middleware — solo owner

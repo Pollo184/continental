@@ -573,6 +573,32 @@
     }
     .nivel-restante { font-size: .7rem; color: var(--text-muted); margin-top: 6px; }
 
+    .titulos-section { margin: 14px 0 18px; padding: 12px; border-radius: 12px; background: rgba(200,160,69,.06); border: 1px solid rgba(200,160,69,.18); }
+    .titulos-title { font-size: .78rem; color: var(--gold); font-weight: 700; letter-spacing: .05em; text-transform: uppercase; margin-bottom: 10px; }
+    .titulos-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .titulo-tile {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 10px; border-radius: 999px;
+      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.14);
+      font-size: .78rem; color: var(--text);
+    }
+    .titulo-tile .tt-emoji { font-size: .9rem; }
+    .titulo-tile.equipado { border-color: rgba(200,160,69,.6); background: rgba(200,160,69,.14); color: var(--gold); box-shadow: 0 0 0 2px rgba(200,160,69,.12); }
+    .titulo-tile button {
+      border: none; background: transparent; color: var(--gold); cursor: pointer;
+      font-size: .72rem; font-weight: 700; padding: 2px 4px; border-radius: 6px;
+    }
+    .titulo-tile button:hover { background: rgba(200,160,69,.15); }
+    .titulo-tile.equipado button { color: var(--text-muted); }
+    .btn-equip-logro {
+      margin-top: 6px; border: none; cursor: pointer;
+      background: rgba(200,160,69,.14); color: var(--gold);
+      border: 1px solid rgba(200,160,69,.4); border-radius: 8px;
+      font-size: .68rem; font-weight: 700; padding: 2px 8px;
+    }
+    .btn-equip-logro:hover { background: rgba(200,160,69,.25); }
+    .btn-equip-logro:disabled { opacity: .55; cursor: default; }
+
     .logros-grid {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -902,6 +928,10 @@
               <div class="nivel-restante" id="nivel-restante"></div>
             </div>
           </div>
+          <div class="titulos-section" id="titulos-section" style="display:none">
+            <div class="titulos-title">Títulos desbloqueados</div>
+            <div class="titulos-grid" id="titulos-grid"></div>
+          </div>
           <div class="logros-grid" id="logros-grid"></div>
           <div class="logros-pager" id="logros-pager" style="display:none">
             <button class="pager-btn" id="logros-prev" onclick="pagLogros(-1)" title="Anterior">‹</button>
@@ -951,7 +981,7 @@
 
         <footer class="hub-foot">
           <i class="ph ph-spade-fill"></i>
-                <span>Continental · beta v0.5.3.3</span>
+                <span>Continental · beta v0.5.4</span>
         </footer>
 
         </div><!-- /.profile-body -->
@@ -1238,6 +1268,52 @@
     const LOGROS_POR_PAGINA = 15;
     let logrosPaginas = [];
     let logrosPagina = 0;
+    let tituloEquipado = null;
+
+    function renderMisTitulos (lista, equipado) {
+      const section = document.getElementById('titulos-section');
+      const grid = document.getElementById('titulos-grid');
+      if (!section || !grid) return;
+      const desbloqueados = (lista || []).filter(t => TITULOS[t]);
+      if (desbloqueados.length === 0) { section.style.display = 'none'; return; }
+      section.style.display = '';
+      grid.innerHTML = desbloqueados.map(t => {
+        const info = TITULOS[t];
+        const eq = equipado === t;
+        return `<span class="titulo-tile ${eq ? 'equipado' : ''}">
+            <span class="tt-emoji">${info.emoji}</span>
+            <span>${info.label}</span>
+            <button onclick="equipTitulo('${eq ? '' : t}')" title="${eq ? 'Quitar título' : 'Equipar título'}">${eq ? 'Quitar' : 'Poner'}</button>
+          </span>`;
+      }).join('');
+    }
+
+    async function equipTitulo (titulo) {
+      try {
+        const res = await fetch('/api/me/titulo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ titulo: titulo || null }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          if (res.status === 401) { localStorage.removeItem('token'); localStorage.removeItem('usuario'); window.location.href = '/login'; return; }
+          toast(data.error || 'No se pudo guardar el título.', 'err');
+          return;
+        }
+        tituloEquipado = data.usuario?.titulo || null;
+        const stored = JSON.parse(localStorage.getItem('usuario') || '{}');
+        localStorage.setItem('usuario', JSON.stringify({ ...stored, titulo: tituloEquipado }));
+        window.AUTH = { token, usuario: { ...usuario, titulo: tituloEquipado } };
+        usuario = { ...usuario, titulo: tituloEquipado };
+        const info = tituloEquipado ? TITULOS[tituloEquipado] : null;
+        toast(tituloEquipado ? 'Título puesto: ' + info.label : 'Título quitado.');
+        renderMisTitulos(Array.from(titulosDesbloqueados), tituloEquipado);
+        pintarLogrosPagina();
+      } catch {
+        toast('Error de conexión.', 'err');
+      }
+    }
 
     function renderLogros (lista) {
       const grid = document.getElementById('logros-grid');
@@ -1264,14 +1340,15 @@
         return `<div class="logro-tile ${done ? 'completed' : ''} page-in" style="animation-delay:${Math.min(i * 35, 500)}ms">
           <div class="logro-icon"><i class="ph ph-${l.icono}"></i></div>
           <div style="flex:1;min-width:0">
-            <div class="logro-name${l.clave === 'partida_perfecta' ? ' badge-diamante' : ''}">${l.nombre}${l.titulo ? ' <span style="color:var(--gold)">· «' + (BADGE_LABELS[l.titulo] || l.titulo) + '»</span>' : ''}</div>
+            <div class="logro-name${l.clave === 'partida_perfecta' ? ' badge-diamante' : ''}">${l.nombre}${l.titulo ? ' <span style="color:var(--gold)">· «' + (TITULOS[l.titulo]?.label || l.titulo) + '»</span>' : ''}</div>
             <div class="logro-desc">${l.descripcion}</div>
             ${l.meta > 0 ? `<div class="logro-prog"><div class="xp-bar"><div class="xp-bar-fill" style="width:${pct}%"></div></div><span>${Math.min(l.progreso, l.meta)} / ${l.meta}</span></div>` : ''}
             <div class="logro-reward">
               <span>🏅 +${l.xp} XP</span>
               <span>🪙 +${Number(l.fichas).toLocaleString('es-MX')}</span>
-              ${l.titulo ? `<span>🎖️ Título</span>` : ''}
+              ${l.titulo ? `<span>🎖️ ${(TITULOS[l.titulo] || {}).emoji || 'Título'} ${TITULOS[l.titulo]?.label || l.titulo}</span>` : ''}
             </div>
+            ${done && l.titulo ? `<button class="btn-equip-logro" onclick="equipTitulo('${l.titulo}')" ${tituloEquipado === l.titulo ? 'disabled' : ''}>${tituloEquipado === l.titulo ? '✓ Puesto' : 'Equipar'}</button>` : ''}
           </div>
         </div>`;
       }).join('');
@@ -1292,12 +1369,17 @@
       pintarLogrosBotones();
     }
 
+    let titulosDesbloqueados = [];
+
     async function cargarLogros () {
       try {
         const res = await fetch('/api/logros', { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) return;
         const data = await res.json();
+        titulosDesbloqueados = data.titulos || [];
+        tituloEquipado = data.tituloEquipado || null;
         renderNivel(data);
+        renderMisTitulos(titulosDesbloqueados, tituloEquipado);
         renderLogros(data.logros || []);
       } catch {}
     }
@@ -1459,6 +1541,7 @@
     }
 
     window.selectSkin = selectSkin;
+    window.equipTitulo = equipTitulo;
     window.guardarNombre = guardarNombre;
     window.setPrefGuide = setPrefGuide;
     window.setPrefMesa = setPrefMesa;

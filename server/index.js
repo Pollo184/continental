@@ -189,13 +189,55 @@ async function ensureDatabaseSchema() {
     CREATE INDEX IF NOT EXISTS idx_logros_usuario ON logros_usuario(user_id)
   `);
 
-  const { seedLogros } = require('./logros');
-  await seedLogros(pool);
+  const logrosMod = require('./logros');
+  await logrosMod.seedLogros(pool);
 
   await pool.query(`
     UPDATE usuarios
     SET skin = 'clasico'
     WHERE skin IS NULL OR skin = ''
+  `);
+
+  // ─── Títulos de logro (insignias ganadas) ──────────────────────
+  // Los logros otorgan TÍTULOS equipables; los badges quedan solo
+  // para los especiales del admin (owner, vip, early_adopter, beta_tester).
+  await pool.query(`
+    ALTER TABLE usuarios
+    ADD COLUMN IF NOT EXISTS titulo VARCHAR(50)
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS usuarios_titulos (
+      user_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+      titulo  VARCHAR(50) NOT NULL,
+      PRIMARY KEY (user_id, titulo)
+    )
+  `);
+
+  // Backfill: títulos ya ganados por logros completados.
+  await pool.query(`
+    INSERT INTO usuarios_titulos (user_id, titulo)
+    SELECT lu.user_id, l.titulo
+      FROM logros_usuario lu
+      JOIN logros l ON l.id = lu.logro_id
+     WHERE lu.completado AND l.titulo IS NOT NULL
+    ON CONFLICT DO NOTHING
+  `);
+
+  // Backfill: mover títulos que quedaron en badge por el auto-equip viejo.
+  const titulosKeys = logrosMod.LOGROS.map(l => l.titulo).filter(Boolean);
+  await pool.query(
+    `UPDATE usuarios
+        SET titulo = badge, badge = NULL
+      WHERE badge = ANY($1::text[])
+        AND (titulo IS NULL OR titulo = '')`,
+    [titulosKeys]
+  );
+  await pool.query(`
+    INSERT INTO usuarios_titulos (user_id, titulo)
+    SELECT id, titulo FROM usuarios
+     WHERE titulo IS NOT NULL AND titulo <> ''
+    ON CONFLICT DO NOTHING
   `);
 }
 
@@ -217,19 +259,20 @@ const NAME_RE = /^[A-Za-z0-9áéíóúÁÉÍÓÚñÑüÜ ]{2,18}$/;
 const CODE_RE = /^[A-Z0-9]{4,5}$/;
 
 async function fetchPlayerProfile(userId, nombre) {
-  if (!userId) return { badge: null, skin: 'clasico', rol: 'jugador', chips: null };
+  if (!userId) return { badge: null, skin: 'clasico', rol: 'jugador', chips: null, titulo: null };
   try {
-    const r = await pool.query('SELECT badge, skin, rol, chips FROM usuarios WHERE id = $1', [userId]);
+    const r = await pool.query('SELECT badge, titulo, skin, rol, chips FROM usuarios WHERE id = $1', [userId]);
     const raw = r.rows[0] || {};
     return {
       badge: raw.badge || null,
+      titulo: raw.titulo || null,
       skin:  raw.skin  || 'clasico',
       rol:   raw.rol   || 'jugador',
       chips: raw.chips != null ? Number(raw.chips) : null,
     };
   } catch (e) {
     console.error('[badge] profile error:', e.message);
-    return { badge: null, skin: 'clasico', rol: 'jugador', chips: null };
+    return { badge: null, titulo: null, skin: 'clasico', rol: 'jugador', chips: null };
   }
 }
 
@@ -402,7 +445,7 @@ wss.on('connection', (ws, req) => {
           ctx.nombre   = safeNombre;
           ctx.userId   = ctx.auth?.id ?? null;
 
-          const { badge: hostBadge, skin: hostSkin, rol: hostRole, chips: hostChips } = await fetchPlayerProfile(ctx.userId, safeNombre);
+          const { badge: hostBadge, titulo: hostTitulo, skin: hostSkin, rol: hostRole, chips: hostChips } = await fetchPlayerProfile(ctx.userId, safeNombre);
 
           if (quiereApuesta && (!Number.isInteger(hostChips) || hostChips < anteVal)) {
             return send(ws, { type: 'error', msg: `Necesitas al menos ${anteVal} fichas para crear una mesa con apuesta de ${anteVal}/ronda.` });
@@ -410,7 +453,7 @@ wss.on('connection', (ws, req) => {
 
           const room = new GameRoom({
             code,
-            host: { id: playerId, nombre: safeNombre, badge: hostBadge, skin: hostSkin, rol: hostRole, userId: ctx.userId, chips: hostChips, ws },
+            host: { id: playerId, nombre: safeNombre, badge: hostBadge, titulo: hostTitulo, skin: hostSkin, rol: hostRole, userId: ctx.userId, chips: hostChips, ws },
             mode,
             maxPlayers: Math.min(Math.max(Number(maxPlayers) || 4, 2), 5),
             publicRoom,
@@ -466,7 +509,7 @@ wss.on('connection', (ws, req) => {
           ctx.nombre   = safeNombre;
           ctx.userId   = ctx.auth?.id ?? null;
 
-          const { badge: joinBadge, skin: joinSkin, rol: joinRole, chips: joinChips } = await fetchPlayerProfile(ctx.userId, safeNombre);
+          const { badge: joinBadge, titulo: joinTitulo, skin: joinSkin, rol: joinRole, chips: joinChips } = await fetchPlayerProfile(ctx.userId, safeNombre);
 
           const effectiveChips = ctx.userId ? joinChips : (existingSeat ? existingSeat.chips : null);
           if (room.conApuesta && (!Number.isInteger(effectiveChips) || effectiveChips < room.ante)) {
@@ -484,7 +527,8 @@ wss.on('connection', (ws, req) => {
             ctx.userId ? joinSkin  : (existingSeat ? existingSeat.skin  : 'clasico'),
             ctx.userId ? joinRole  : (existingSeat ? existingSeat.rol   : 'jugador'),
             ctx.userId,
-            ctx.userId ? joinChips : (existingSeat ? existingSeat.chips : null)
+            ctx.userId ? joinChips : (existingSeat ? existingSeat.chips : null),
+            ctx.userId ? joinTitulo : (existingSeat ? existingSeat.titulo : null)
           );
           if (!player) return send(ws, { type: 'error', msg: 'Sala llena o ya iniciada.' });
 
