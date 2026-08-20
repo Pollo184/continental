@@ -3535,7 +3535,7 @@ function handleMoveBetweenSlots(cartaId, fromSlotIndex, toSlotIndex, toSlotType,
     if (cartaIndex === -1) return;
     const [cartaMovida] = fromSlotCards.splice(cartaIndex, 1);
     if (fromSlotCards.length === 0) buildingCards.delete(fromSlotIndex);
-    else updateSlotUI(fromSlotIndex, fromSlotCards);
+    updateSlotUI(fromSlotIndex, fromSlotCards);
     if (!buildingCards.has(toSlotIndex)) buildingCards.set(toSlotIndex, []);
     const toSlotCards = buildingCards.get(toSlotIndex);
     if (insertIdx !== undefined && insertIdx !== null && insertIdx < toSlotCards.length) {
