@@ -6,7 +6,8 @@
     "cambios": [
       "Nuevo badge Músico 🎻 asignable por el administrador.",
       "Skin exclusiva del músico con pentagrama (notas ♪) hecha en CSS, se equipa desde el perfil y se ve en tus cartas, avatar y en la mesa.",
-      "Corregido el flash de cartas al inicio de la animación de reparto y que las cartas desaparecían si se hacía click durante el reparto."
+      "Corregido el flash de cartas al inicio de la animación de reparto y que las cartas desaparecían si se hacía click durante el reparto.",
+      "Corregida la duplicación de cartas al moverlas entre slots de armado en la zona de juego."
     ]
   },
   {
