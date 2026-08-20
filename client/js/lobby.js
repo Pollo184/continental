@@ -813,6 +813,8 @@ function showLobby (lobbyState, pid, code, host) {
   document.getElementById('lobby-setup').style.display = 'none';
   const lr = document.getElementById('lobby-room');
   lr.classList.add('show');
+  const hubTop = document.querySelector('.hub-top');
+  if (hubTop) hubTop.style.display = 'none';
   document.getElementById('room-code-text').textContent = code;
   // En mesas públicas el código se oculta: se entra desde el lobby
   const codeBox = document.getElementById('room-code-display');
@@ -967,6 +969,8 @@ function setupSocketEvents () {
     isHost = false;
     document.getElementById('lobby-room').classList.remove('show');
     document.getElementById('lobby-setup').style.display = 'block';
+    const hubTop = document.querySelector('.hub-top');
+    if (hubTop) hubTop.style.display = '';
     toast('Saliste de la mesa.', 'green');
   });
 
