@@ -1767,15 +1767,14 @@ select:focus-visible {
 #chat-send:active { transform: scale(.9); }
 
 #turn-timer {
-  position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-  display: none; align-items: center; gap: 6px;
-  padding: 5px 14px; border-radius: 999px;
-  background: linear-gradient(135deg, rgba(14,36,25,.95), rgba(8,20,14,.95));
+  display: none; align-items: center; gap: 4px;
+  padding: 2px 10px; border-radius: 999px;
+  background: rgba(200,160,69,.14);
   border: 1px solid rgba(200,160,69,.5);
-  color: var(--gold-hi); font-weight: 700; font-size: 0.85rem;
+  color: var(--gold-hi); font-weight: 700; font-size: 0.72rem;
   letter-spacing: .04em;
-  z-index: 9992; box-shadow: 0 4px 18px rgba(0,0,0,.55);
-  pointer-events: none;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 #turn-timer.show { display: inline-flex; }
 #turn-timer.urgent { color: #ff6b6b; border-color: rgba(255,107,107,.65); animation: timerPulse 1s ease infinite; }
@@ -2089,6 +2088,7 @@ select:focus-visible {
   .topbar { height: 32px; min-height: 32px; padding: 0 10px; }
   .tb-title { font-size: 0.85rem; }
   .pill { font-size: 0.58rem; padding: 1px 6px; }
+  #turn-timer { font-size: 0.58rem; padding: 1px 6px; }
   .poker-table { gap: 3px; padding: 3px 8px 2px; }
   .felt { border-width: 8px; border-radius: 50% / 42%; }
   .felt-center { gap: 20px; }
@@ -2186,6 +2186,7 @@ select:focus-visible {
     <span class="pill pill-dim"  id="req-pill">2 tercias</span>
     <span class="pill pill-dim"  id="mode-pill">●</span>
     <div class="scoreboard" id="scoreboard"></div>
+    <div id="turn-timer"></div>
     <button class="guide-topbar-btn" id="btn-guide-game" onclick="openGuideSettings()"><i class="ph ph-books"></i>Guía</button>
   </div>
 
@@ -2369,7 +2370,6 @@ select:focus-visible {
 
   <div id="toast"></div>
   <div id="notif-stack"></div>
-  <div id="turn-timer"></div>
 
 </div><!-- /game -->
 
