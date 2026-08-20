@@ -41,6 +41,7 @@ let ackSent = false;
 let intercambioMode = false;
 let selectedComodinInfo = null;
 let hideHandDuringDeal = true;
+let _dealing = false;
 let _lastRenderedTurn = null;
 let _lastRenderedRound = null;
 let _turnJustChanged = false;
@@ -1302,7 +1303,7 @@ function setupSocketEvents() {
                 showModalJuego({ jugadores: G.jugadores, fichas: null, bancaRepartida: null, conApuesta: G.conApuesta });
             }
         } else {
-            hideHandDuringDeal = false;
+            if (!_dealing) hideHandDuringDeal = false;
             renderStateUpdate(event, data);
             await applyEvent(event, data, prev);
         }
@@ -1526,6 +1527,7 @@ async function handleNewRound() {
     //    en mesas con apuesta, ANTES de barajar y repartir.
     hideHandDuringDeal = true;
     render();
+    _dealing = true;
     if (G?.conApuesta) {
         const seats = [...document.querySelectorAll('#opponents .opp')];
         const mySeat = document.querySelector('.player-header');
@@ -1554,6 +1556,7 @@ async function handleNewRound() {
     await new Promise(r => requestAnimationFrame(r));
 
     if (!mazoEl || !handZone || !mano.length) {
+        _dealing = false;
         hideHandDuringDeal = false;
         renderHand();
         return;
@@ -1571,6 +1574,7 @@ async function handleNewRound() {
             settleDelay: 55,
         },
     });
+    _dealing = false;
 
     hideHandDuringDeal = false;
 }
@@ -3358,6 +3362,11 @@ function renderHand() {
     const me = G.jugadores[myIdx];
     const discardZone = document.getElementById('discard-zone');
     if (!discardZone) return;
+
+    if (_dealing) {
+        document.getElementById('hand-count').textContent = `${me?.mano?.length || 0} cartas`;
+        return;
+    }
 
     const manoIds = (me.mano || []).map(c => c.id).join(',');
     const buildingSig = [...buildingCards.entries()]
