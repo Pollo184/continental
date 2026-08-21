@@ -123,6 +123,16 @@ async function crearTablas() {
   `);
 
   await pool.query(`
+    ALTER TABLE partidas_jugadores
+    ADD COLUMN IF NOT EXISTS uso_comodines BOOLEAN NOT NULL DEFAULT FALSE
+  `);
+
+  await pool.query(`
+    ALTER TABLE partidas_jugadores
+    ADD COLUMN IF NOT EXISTS back_to_back BOOLEAN NOT NULL DEFAULT FALSE
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS logros (
       id          SERIAL PRIMARY KEY,
       clave       VARCHAR(40)  NOT NULL UNIQUE,

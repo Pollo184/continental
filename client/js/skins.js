@@ -37,6 +37,9 @@ const TITULOS = {
   'magnate':           { label: 'Magnate',           emoji: '💰' },
   'perfecto':          { label: 'Perfecto',          emoji: '💎' },
   'ahorrativo':        { label: 'Ahorrativo',        emoji: '🪙' },
+  'imparable_10':      { label: 'Imperturbable',     emoji: '⚡' },
+  'millonario':        { label: 'Millonario',        emoji: '👑' },
+  'apostador_nato':    { label: 'Apostador nato',    emoji: '🎰' },
 };
 const TITULO_LABELS = Object.fromEntries(Object.entries(TITULOS).map(([k, v]) => [k, v.label]));
 const TITULO_EMOJI  = Object.fromEntries(Object.entries(TITULOS).map(([k, v]) => [k, v.emoji]));

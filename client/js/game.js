@@ -2677,6 +2677,9 @@ const TITULOS = {
     'magnate':           { label: 'Magnate' },
     'perfecto':          { label: 'Perfecto' },
     'ahorrativo':        { label: 'Ahorrativo' },
+    'imparable_10':      { label: 'Imperturbable' },
+    'millonario':        { label: 'Millonario' },
+    'apostador_nato':    { label: 'Apostador nato' },
 };
 function skinClass(skin) {
     if (!skin || skin === 'clasico') return '';

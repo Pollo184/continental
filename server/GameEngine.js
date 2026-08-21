@@ -449,6 +449,7 @@ class GameEngine {
             bajoCorrida: false,
             fuePenalizado: false,
             seCastigo: false,
+            usoComodines: false,
         }));
         this.pot = 0;      // pozo de la ronda actual
         this.banca = 0;    // acumulado entre rondas
@@ -843,6 +844,8 @@ class GameEngine {
         this.jActivo.bajado = true;
         if (terciasCount > 0) this.jActivo.bajoTercia = true;
         if (corridasCount > 0) this.jActivo.bajoCorrida = true;
+        const tieneComodines = validacion.jugadasOrdenadas.some(j => j.cartas.some(c => c.comodin));
+        if (tieneComodines) this.jActivo.usoComodines = true;
 
         this.addLog(`🔥 ${this.jActivo.nombre} se bajó en ronda ${this.ronda}!`);
         this.lastAction = Date.now();
@@ -1037,6 +1040,7 @@ class GameEngine {
 
         guardarValorComodin(jug);
         j.mano.splice(cidx, 1);
+        if (carta.comodin) j.usoComodines = true;
         this.addLog(`🃏 ${j.nombre} acomodó en jugada de ${dest.nombre}.`);
         this.lastAction = Date.now();
         if (j.mano.length === 0) return this._finRonda(tidx, { tipo: 'acomodar', carta });

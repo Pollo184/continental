@@ -542,16 +542,22 @@ class GameRoom {
       const partidaId = rows[0].id;
 
       for (const j of jugadores) {
+        const jPos = posiciones.indexOf(j.id) + 1;
+        const esGanador = jPos === 1;
+        const starterIdx = (this.engine.dealer + 1) % jugadores.length;
+        const esStarter = jugadores[starterIdx]?.id === j.id;
+        const btB = esGanador && esStarter && this._ganadorAnteriorId === j.id;
         await client.query(
           `INSERT INTO partidas_jugadores
              (partida_id, user_id, nombre, posicion, pts_totales, fichas_inicio, fichas_final, ganancia,
-              bajo_tercia, bajo_corrida, castigos, se_castigo)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-          [partidaId, j.userId || null, j.nombre, posiciones.indexOf(j.id) + 1, j.pts_t,
+              bajo_tercia, bajo_corrida, castigos, se_castigo, uso_comodines, back_to_back)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+          [partidaId, j.userId || null, j.nombre, jPos, j.pts_t,
            j.fichasInicio, j.fichas, j.fichas - j.fichasInicio,
            Boolean(j.bajoTercia), Boolean(j.bajoCorrida), j.fuePenalizado ? 1 : 0,
-           Boolean(j.seCastigo)]
+           Boolean(j.seCastigo), Boolean(j.usoComodines), btB]
         );
+        if (esGanador) this._ganadorAnteriorId = j.id;
       }
 
       const progresos = new Map();
@@ -585,7 +591,8 @@ class GameRoom {
       console.log('[ROOM]', this.code, 'partida registrada id', partidaId, 'jugadores', jugadores.length);
     } catch (e) {
       await client.query('ROLLBACK');
-      this._partidaRegistrada = false;
+    this._partidaRegistrada = false;
+    this._ganadorAnteriorId = null;
       console.error('[ROOM]', this.code, 'error registrando partida', e.message);
     } finally {
       client.release();
